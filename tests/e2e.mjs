@@ -38,9 +38,13 @@ try{
  await child.locator('[data-game="pause"]').click();await child.locator('[data-game="resume"]').click();
  await childContext.setOffline(true);await visible(child,'再接続しています');await child.locator('.game-overlay').waitFor();
  await childContext.setOffline(false);await visible(child,'つながっています');await child.locator('[data-game="resume"]').click();
+ const fieldBox=await child.locator('#field').boundingBox();assert.ok(fieldBox);
+ await child.mouse.move(fieldBox.x+fieldBox.width*.3,fieldBox.y+fieldBox.height*.5);
+ await child.locator('.plate.full').first().waitFor({timeout:30000});
+ assert.equal(await child.locator('#plates .plate').count(),3);
  await shot(child,'02-child-game');await layout(child);
- await child.getByRole('heading',{name:'食材を、大人に届けたよ！',exact:true}).waitFor({timeout:50000});
- check('child starts and finishes a 30-second game while adult is logged out; pause and reconnect preserve the round');
+ await child.getByRole('heading',{name:'食材を、大人に届けたよ！',exact:true}).waitFor({timeout:90000});
+ check('child completes the three-plate two-choice game while adult is logged out; pause and reconnect preserve the round');
  await login(adult);await click(adult,'role-adult');await adult.locator('[data-select="egg"]').waitFor();
  assert.ok((await adult.locator('.food-choice small').allTextContents()).some(text=>!text.startsWith('0こ')));
  check('adult logs in later with same family credentials and receives latest actual catches');
