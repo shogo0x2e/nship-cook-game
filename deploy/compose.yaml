@@ -1,0 +1,42 @@
+name: cookgame
+services:
+  app:
+    image: ${COOKGAME_IMAGE:?Set the verified immutable image tag}
+    platform: linux/amd64
+    init: true
+    user: "1000:1000"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8787"
+      NODE_ENV: production
+      ALLOWED_ORIGINS: https://cookgame.shogo0x2e.com
+      DATA_DIR: /data
+      APP_REVISION: ${APP_REVISION:?Set the deployed commit SHA}
+    volumes:
+      - type: bind
+        source: /opt/cookgame/data
+        target: /data
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:8787:8787"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.5
+    mem_limit: 384m
+    pids_limit: 64
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:
+      test: [CMD, node, --input-type=module, -e, "const r=await fetch('http://127.0.0.1:8787/api/version');process.exit(r.ok?0:1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
