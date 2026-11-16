@@ -54,12 +54,16 @@ try {
   await visible(adult, 'ひとやすみ');
   await child.locator('[data-game="resume"]').click();
   check('pause status, connection-loss pause and automatic reconnect without remounting the game');
+  // Hold the basket under the left lane so one of each pair is really caught on the canvas.
+  const fieldBox = await child.locator('#field').boundingBox();
+  await child.mouse.move(fieldBox.x + fieldBox.width * .3, fieldBox.y + fieldBox.height * .5);
+  await child.locator('.plate.full').first().waitFor({ timeout: 30000 });
   await screenshot(child, '02-child-game'); await layout(child);
-  await adult.getByText('今日、気になった食材。', { exact: true }).waitFor({ timeout: 50000 });
+  await adult.getByText('今日、気になった食材。', { exact: true }).waitFor({ timeout: 90000 });
   await visible(child, 'どのごはんに');
   const counts = await adult.locator('.food-choice small').allTextContents();
   assert.ok(counts.some(text => !text.startsWith('0こ')), 'real canvas catch reaches adult');
-  check('30-second game, real catches and result sharing; child waits for adult');
+  check('three-plate two-choice game, real catches and result sharing; child waits for adult');
   await screenshot(adult, '03-adult-review');
   const selected = adult.locator('[data-select="egg"]');
   await selected.setChecked(!await selected.isChecked());
