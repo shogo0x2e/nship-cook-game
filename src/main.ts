@@ -62,7 +62,7 @@ function childView(s:FamilyState){
   if(isGameActive(s))return '<main class="page game-page"><div id="child-game"></div><button class="text-button" data-action="cancel-game">← おてつだいに戻る</button></main>';
   const step=s.selectedRecipeId?cookingPlans[s.selectedRecipeId].find(step=>step.id===s.cooking.activeStepId):null;
   let current=step?.role==='child'?`<p class="audience">いまの おてつだい</p><h1>${safe(step.title)}</h1><p class="child-detail">${safe(step.detail)}</p>${s.cooking.childReportStepId===step.id?'<p class="report-sent" role="status">できたを送ったよ！<br>大人がたしかめているよ。</p>':button('child-done','できた！ →',`data-step="${step.id}"`)}<p class="small-note">こまったら、大人をよんでね。</p>`:s.stage==='cooking'?'<h1>つぎのおてつだいを、まとう。</h1><p>大人がじゅんびしているよ。</p>':s.stage==='complete'?'<h1>いっしょに、できたね！</h1>':s.latestResultAt!==null?'<h1>食材を、大人に届けたよ！</h1><p>もう一度あそんでも、だいじょうぶ。</p>':'<h1>どの食材を、キャッチする？</h1><p>大人とまわりの安全をたしかめてね。</p>';
-  return `<main class="page child-center">${current}<div class="child-play-options"><p>食材キャッチで あそぼう</p><div class="entry-actions">${button('start-camera','からだで あそぶ →')}${button('start-demo','カメラなしで あそぶ →')}</div><p class="small-note">その場でゆっくり左右へ。座ったままでも遊べるよ。<br>映像はこの端末の中だけで使います。</p></div></main>`;
+  return `<main class="page child-center">${current}<div class="child-play-options"><p>食材キャッチで あそぼう</p><div class="entry-actions">${button('start-camera','からだで あそぶ →')}${button('start-demo','カメラなしで あそぶ →')}</div><p class="small-note">すわったまま、すきなほうへ手をのばそう。<br>映像はこの端末の中だけで使います。</p></div></main>`;
 }
 function reviewView(s: FamilyState) {
   const options = ingredients.filter(i => !s.excluded.includes(i.id) && !i.allergens.some(a => s.allergens.includes(a)));

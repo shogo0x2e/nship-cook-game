@@ -1,6 +1,7 @@
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { mirroredTorsoX } from './game';
-export type Tracking = { x: number | null; points: { x: number; y: number; visibility?: number }[]; inferenceMs: number };
+export type Tracking = { x: number | null; points: { x: number; y: number; visibility?: number }[]; inferenceMs: number; capturedAt: number; width: number; height: number };
+export interface CameraSource { start(video: HTMLVideoElement): Promise<void>; stop(): void }
 export class PoseCamera {
   private model?: PoseLandmarker;
   private stream?: MediaStream;
@@ -22,7 +23,7 @@ export class PoseCamera {
     catch { model = await PoseLandmarker.createFromOptions(fileset, { ...options, baseOptions: { ...options.baseOptions, delegate: 'CPU' } }); }
     if (generation !== this.generation) { model.close(); return; }
     this.model = model;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 20, max: 30 } } });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, max: 30 } } });
     if (generation !== this.generation) { stream.getTracks().forEach(t => t.stop()); return; }
     this.stream = stream; video.srcObject = stream;
     await video.play();
@@ -30,14 +31,14 @@ export class PoseCamera {
     this.lastInference = -Infinity; this.lastVideoTime = -1;
     const tick = (now: number) => {
       if (generation !== this.generation) return;
-      if (!document.hidden && video.readyState >= 2 && video.currentTime !== this.lastVideoTime && now - this.lastInference >= 85) {
+      if (!document.hidden && video.readyState >= 2 && video.currentTime !== this.lastVideoTime && now - this.lastInference >= 30) {
         this.lastInference = now; this.lastVideoTime = video.currentTime;
         try {
           const started = performance.now();
           const result = model.detectForVideo(video, now);
           const points = result.landmarks[0] ?? [];
-          this.callback({ x: mirroredTorsoX(points), points, inferenceMs: performance.now() - started });
-        } catch { this.callback({ x: null, points: [], inferenceMs: 0 }); }
+          this.callback({ x: mirroredTorsoX(points), points, inferenceMs: performance.now() - started, capturedAt: started, width: video.videoWidth, height: video.videoHeight });
+        } catch { this.callback({ x: null, points: [], inferenceMs: 0, capturedAt: performance.now(), width: video.videoWidth, height: video.videoHeight }); }
       }
       this.frame = requestAnimationFrame(tick);
     };

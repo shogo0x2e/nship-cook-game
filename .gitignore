@@ -2,6 +2,7 @@ node_modules
 dist/
 test-results/
 playwright-report/
+generated_images/
 .DS_Store
 public/pose/*
 !public/pose/.gitkeep
