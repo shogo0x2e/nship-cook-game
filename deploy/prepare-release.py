@@ -46,6 +46,18 @@ def verify_image(image, revision):
             assert error.code == 401
         else:
             raise RuntimeError('Unauthenticated account access was accepted')
+        # The production build must contain both entry points and all generated avatar sprites.
+        for path in ['/', '/poc.html', '/avatar/background.png', '/avatar/body.png',
+                     '/avatar/sleeve.png', '/avatar/hand.png']:
+            request = urllib.request.Request(base + path, headers={'Host': 'localhost:8787'})
+            with urllib.request.urlopen(request, timeout=5) as response:
+                data = response.read()
+                assert response.status == 200 and data, path
+                if path.endswith('.png'):
+                    assert response.headers['Content-Type'] == 'image/png', path
+                    assert data.startswith(b'\x89PNG\r\n\x1a\n'), path
+                else:
+                    assert b'type="module"' in data, path
     finally:
         subprocess.run(['docker', 'rm', '-f', name], check=False, stdout=subprocess.DEVNULL)
 

@@ -1,6 +1,6 @@
 # 顔と手のアバター PoC
 
-専用ブランチ `feat/face-avatar-reach`。本番へは公開せず、ローカルで操作感を確認する版です。
+専用ブランチ `feat/face-avatar-reach` で開発し、利用者のローカル確認後に `main`・`production` へ反映します。本番の家庭アカウントのカメラ操作と、結果を送らない `/poc.html` の両方で利用できます。
 
 ```sh
 npm run build
@@ -28,8 +28,8 @@ PORT=8789 DATA_DIR=data/avatar-poc npm start
 ```sh
 npm test
 npm run build
-npm run test:e2e
-npm run test:avatar
+npm run test:e2e  # 家庭アカウント9シナリオ + アバター7シナリオ
+# アバターだけ確認する場合: npm run test:avatar
 ```
 
 単体テストは左右の鏡映、距離に対する不変性、不安定な点の拒否、下げた手の無効化、角度の境界、顔枠、速い接触、同時接触、画面サイズを検証します。`test:avatar` は実カメラを使わず、合成ストリームで実際の描画・顔枠・腕の重なり・手での開始／再開・三皿のキャッチ・検出停止・両手・見送り・モード切替時のストリーム停止・カメラ拒否・外部通信ゼロを確認します。証跡は `test-results/avatar/` に出力します。

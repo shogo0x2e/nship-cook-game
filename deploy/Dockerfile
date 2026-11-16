@@ -5,7 +5,8 @@ FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY index.html tsconfig.json vite.config.ts ./
+COPY index.html poc.html tsconfig.json vite.config.ts ./
+COPY public/avatar ./public/avatar
 COPY src ./src
 COPY server ./server
 COPY tests ./tests

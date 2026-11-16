@@ -2,7 +2,7 @@
 
 `production` への所有者による push だけを `.github/workflows/production.yml` が処理します。
 PR・fork・他ブランチ・手動 dispatch は対象外です。GitHub-hosted Ubuntu runner で
-Node26.13.1のテスト、ビルド、E2E、Docker起動を検証し、コミット別の公開GitHub Releaseに
+Node26.13.1のテスト、ビルド、家庭アカウントとアバターのE2E、Docker起動・画像素材の配信を検証し、コミット別の公開GitHub Releaseに
 `image.tar.gz` と SHA-256付き `release.json` を置きます。旧6桁コード版は
 `family-account-v1` のAPI検証を通らないため、この経路でリリースできません。
 
