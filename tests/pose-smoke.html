@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Local pose model smoke test</title><h1>Local pose model smoke test</h1><p>No camera is accessed. Only a synthetic, blank canvas is processed.</p><pre id="result">Loading local model…</pre><script type="module">
+import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+const result = document.querySelector('#result');
+let model;
+try {
+  const fileset = await FilesetResolver.forVisionTasks('/pose/wasm');
+  let delegate = 'GPU';
+  const options = { runningMode: 'IMAGE', numPoses: 1, outputSegmentationMasks: false };
+  try { model = await PoseLandmarker.createFromOptions(fileset, { ...options, baseOptions: { modelAssetPath: '/pose/pose_landmarker_lite.task', delegate } }); }
+  catch { delegate = 'CPU'; model = await PoseLandmarker.createFromOptions(fileset, { ...options, baseOptions: { modelAssetPath: '/pose/pose_landmarker_lite.task', delegate } }); }
+  const image = document.createElement('canvas'); image.width = 640; image.height = 480;
+  const ctx = image.getContext('2d'); ctx.fillStyle = '#888'; ctx.fillRect(0, 0, 640, 480);
+  const start = performance.now(); const detected = model.detect(image);
+  result.textContent = `PASS: local model initialized (${delegate}); synthetic image processed; poses=${detected.landmarks.length}; inference=${Math.round(performance.now() - start)}ms. Real camera and tablet motion remain untested.`;
+} catch (error) { result.textContent = `FAIL: ${error.message}`; }
+finally { model?.close(); }
+</script></html>
