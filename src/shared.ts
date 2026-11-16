@@ -17,6 +17,9 @@ export type RoomAction =
   | { type: 'CHOOSE_RECIPE'; recipeId: string }
   | { type: 'ACTIVATE_STEP' | 'COMPLETE_STEP' | 'CHILD_DONE'; stepId: string }
   | { type: 'BACK_TO_REVIEW' | 'CANCEL_GAME' };
+export type FamilyState = RoomState & { latestResultAt: number | null };
+export type FamilyAction = RoomAction | { type: 'SET_SETTINGS'; excluded: IngredientId[]; allergens: string[] };
+export type FamilySnapshot = { state: FamilyState };
 export type RoomResponse = { roomId: string; code: string; token: string; state: RoomState; role: Role };
 export type RoomSnapshot = { state: RoomState; role: Role; code: string };
 const plan = (recipe: string, steps: [Role, string, string][]): CookingStep[] => steps.map(([role,title,detail], i) => ({id:`${recipe}-${i+1}`,role,title,detail,requires:i ? [`${recipe}-${i}`] : []}));

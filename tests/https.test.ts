@@ -32,10 +32,9 @@ test('local certificates validate SAN and HTTPS API without changing any trust s
         req.on('error', reject); req.end(data ? JSON.stringify(data) : undefined);
       });
     }
-    const created = await call('/api/rooms', { excluded: [], allergens: [] });
+    const created = await call('/api/auth/register', { username: 'tls_family', password: 'correct horse battery staple' });
     assert.equal(created.status, 201);
-    const adult = JSON.parse(created.body) as { code: string };
-    assert.equal((await call('/api/join', { code: adult.code })).status, 200);
+    assert.equal((JSON.parse(created.body) as {username:string}).username,'tls_family');
     await assert.rejects(call('/api/rooms', undefined, false));
     await assert.rejects(call('/', undefined, true, 'wrong-host.example'), /not in the cert|Hostname\/IP/);
   } finally {

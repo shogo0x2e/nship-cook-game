@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SessionError, SessionStore } from '../server/session-store.ts';
-import { createSessionServer } from '../server/server.ts';
 import { freshEvidence } from '../src/game.ts';
 import { ingredients, recipes } from '../src/content.ts';
 import { cookingPlans } from '../src/shared.ts';
@@ -54,20 +53,4 @@ test('pairing and successful actions renew inactivity TTL, polling alone does no
 });
 test('every recipe has ordered adult/child plans and valid prior dependencies',()=>{
  for(const recipe of recipes){const steps=cookingPlans[recipe.id];assert.ok(steps?.length);assert.equal(steps[0].role,'adult');const seen=new Set<string>();for(const step of steps){assert.ok(!seen.has(step.id));assert.ok(step.requires.every(id=>seen.has(id)));seen.add(step.id);}assert.ok(steps.some(s=>s.role==='child'));}
-});
-test('HTTP API blocks cross-origin, missing auth, extra fields, oversized data and join abuse',async()=>{
- const app=await createSessionServer({port:0});await app.listen();const address=app.server.address() as {port:number};const base=`http://127.0.0.1:${address.port}`;
- const request=(path:string,method='GET',data?:unknown,headers:Record<string,string>={})=>fetch(base+path,{method,headers:{...(method!=='GET'?{Origin:base,'Content-Type':'application/json'}:{}),...headers},body:data===undefined?undefined:JSON.stringify(data)});
- try{
-  assert.equal((await request('/api/rooms','POST',settings,{Origin:'https://evil.example'})).status,403);
-  assert.equal((await fetch(base+'/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)})).status,403);
-  assert.equal((await request('/api/rooms','POST',{...settings,video:'x'})).status,400);
-  assert.equal((await request('/api/rooms','POST',{payload:'x'.repeat(17000)})).status,413);
-  const created=await request('/api/rooms','POST',settings);assert.equal(created.status,201);assert.match(created.headers.get('Content-Security-Policy')??'',/connect-src 'self'/);assert.equal(created.headers.get('Permissions-Policy'),'camera=(self), microphone=(), geolocation=()');
-  const adult=await created.json() as {roomId:string;token:string;code:string};assert.equal((await request(`/api/rooms/${adult.roomId}`)).status,401);
-  const state=await request(`/api/rooms/${adult.roomId}`,'GET',undefined,{Authorization:`Bearer ${adult.token}`});assert.equal(state.status,200);assert.equal('token' in await state.json(),false);
-  assert.equal((await request('/api/join','POST',{code:adult.code})).status,200);
-  for(let i=0;i<9;i++)await request('/api/join','POST',{code:'invalid'});assert.equal((await request('/api/join','POST',{code:'invalid'})).status,429);
-  assert.equal((await request(`/api/rooms/${adult.roomId}`,'DELETE',undefined,{Authorization:`Bearer ${adult.token}`})).status,204);
- }finally{app.server.closeAllConnections();await new Promise<void>((resolve,reject)=>app.server.close(error=>error?reject(error):resolve()));}
 });

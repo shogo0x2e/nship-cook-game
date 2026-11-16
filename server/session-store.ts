@@ -23,7 +23,7 @@ export function validateSettings(value:unknown): {excluded:IngredientId[];allerg
 }
 function validText(value:unknown): string { if(typeof value!=='string'||value.length<1||value.length>100) return fail(400,'Invalid identifier'); return value; }
 function available(state:RoomState,id:IngredientId) { const food=ingredients.find(i=>i.id===id)!; return !state.excluded.includes(id)&&!food.allergens.some(a=>state.allergens.includes(a)); }
-function validateEvidence(value:unknown,state:RoomState): Evidence {
+export function validateEvidence(value:unknown,state:RoomState): Evidence {
   const obj=strictObject(value,foodIds); const result=freshEvidence();
   for(const id of foodIds){const entry=strictObject(obj[id],['offered','caught']); const offered=entry.offered,caught=entry.caught;
     if(typeof offered!=='number'||typeof caught!=='number'||!Number.isInteger(offered)||!Number.isInteger(caught)||offered<0||offered>64||caught<0||caught>offered) return fail(400,'Invalid evidence');
