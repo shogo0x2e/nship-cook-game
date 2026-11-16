@@ -1,6 +1,6 @@
 import { basketWidth, caughtAtBasket, freshEvidence, ingredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Evidence } from './game';
 import { PoseCamera, type Tracking, type CameraSource } from './pose';
-import { avatarLayout, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, trackingTimeout, type DrawArm } from './avatar';
+import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, trackingTimeout, type DrawArm, type Geometry } from './avatar';
 import { AvatarRenderer } from './avatar-renderer';
 
 type Options = { input: 'camera' | 'demo'; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
@@ -13,6 +13,8 @@ export function mountGame(container: HTMLElement, options: Options) {
   let targetArms = restingArms(), displayedArms = restingArms();
   let lastPose = -Infinity, sampleGap = 0;
   let previousHands: DrawArm[] = [], wasTracked = false;
+  const gestureHold = new GestureHold();
+  let gestureProgress = 0, gestureTarget: number | null = null;
   let assetsReady = mode === 'demo';
   const avatar = mode === 'camera' ? new AvatarRenderer() : null;
   let lastTracking: Tracking | null = null;
@@ -49,10 +51,9 @@ export function mountGame(container: HTMLElement, options: Options) {
   function updateTracking() {
     const valid = isTracked();
     const status = $('#camera-status');
-    const message = cameraState === 'error' ? cameraMessage : cameraState === 'loading' ? 'カメラと姿勢モデルを準備中…' : !assetsReady ? '絵を準備中…' : cameraState === 'ready' && valid ? '✓ じゅんびOK！手を上げると、手のまわりに輪が出るよ。' : cameraState === 'ready' ? '顔と両ひじ・両手を、うつしてね。' : '';
+    const message = cameraState === 'error' ? cameraMessage : cameraState === 'loading' ? 'カメラと姿勢モデルを準備中…' : !assetsReady ? '絵を準備中…' : cameraState === 'ready' && valid ? '手をかさねて、輪がいっぱいになるまで まってね。' : cameraState === 'ready' ? '顔と両ひじ・両手を、うつしてね。' : '';
     if (status && message && status.textContent !== message) status.textContent = message;
-    const start = $<HTMLButtonElement>('#start-button');
-    if (start && mode === 'camera') start.disabled = cameraState !== 'ready' || !valid || !assetsReady;
+    if (mode === 'camera') for (const button of container.querySelectorAll<HTMLButtonElement>('[data-game="start"], [data-game="resume"]')) button.disabled = cameraState !== 'ready' || !valid || !assetsReady || !options.canPlay();
   }
   async function prepareCamera() {
     if(cameraState==='loading'||cameraState==='ready')return;
@@ -61,12 +62,68 @@ export function mountGame(container: HTMLElement, options: Options) {
     }
     cameraState='loading';updateTracking();
     const prepare=$<HTMLButtonElement>('[data-game="prepare-camera"]');if(prepare)prepare.disabled=true;
-    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;cameraState='ready'; field.classList.add('camera-prepared'); if(prepare)prepare.remove();updateTracking(); }
+    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;cameraState='ready'; field.classList.add('camera-prepared'); showGestureControls('start'); updateTracking(); }
     catch(error){if(disposed)return;camera.stop();cameraState='error'; const name=error instanceof Error?error.name:'';cameraMessage=name==='NotAllowedError'?'カメラが許可されていません。大人の人に確認してね。':name==='NotFoundError'?'カメラが見つかりません。大人の人に確認してね。':!isSecureContext?'カメラには信頼済みのHTTPSが必要です。大人の人に確認してね。':'カメラを使えません。大人の人に確認してね。'; if(prepare){prepare.disabled=false;prepare.textContent='もう一度 じゅんびする';}updateTracking();}
+  }
+  function showGestureControls(action: 'start' | 'resume', message = '') {
+    container.querySelector('.game-overlay')?.remove();
+    gestureHold.reset(action === 'resume'); gestureProgress = 0; gestureTarget = null;
+    const overlay = document.createElement('div'); overlay.className = 'game-overlay gesture-overlay';
+    const label = action === 'start' ? 'はじめる' : 'つづける';
+    overlay.innerHTML = `${action === 'resume' ? '<h2 class="gesture-title">ひとやすみ</h2><p class="gesture-message"></p>' : '<p id="camera-status" class="gesture-message" role="status"></p>'}<p class="gesture-help">どちらかの「${label}」に、手をかさねよう</p>${[0,1].map(side => `<button type="button" ${side === 0 && action === 'start' ? 'id="start-button"' : ''} class="gesture-button" data-game="${action}" data-gesture-side="${side}" aria-label="${label}（${side === 0 ? '左' : '右'}）。手を重ねるか、タップしてください。">${label}</button>`).join('')}${action === 'resume' ? '<button class="text-button gesture-finish" data-game="finish">ここまでで おわる</button>' : ''}`;
+    if (message) overlay.querySelector('.gesture-message')!.textContent = message;
+    field.appendChild(overlay); positionGestureButtons();
+  }
+  function positionGestureButtons() {
+    const targets = gestureTargets(avatarLayout(field.clientWidth, field.clientHeight));
+    container.querySelectorAll<HTMLButtonElement>('[data-gesture-side]').forEach(button => {
+      const target = targets[Number(button.dataset.gestureSide)];
+      button.style.left = `${target.x-target.radius}px`; button.style.top = `${target.y-target.radius}px`;
+      button.style.width = button.style.height = `${target.radius*2}px`;
+    });
+  }
+  function beginPlaying() {
+    if (disposed || !['setup', 'paused'].includes(phase) || !options.canPlay()) return;
+    if (mode === 'camera' && (cameraState !== 'ready' || !assetsReady || !isTracked())) return;
+    startAudio(); phase = 'playing'; gestureHold.reset(); gestureProgress = 0; gestureTarget = null;
+    previousHands = []; wasTracked = false;
+    container.querySelector('.game-overlay')?.remove(); refreshActions(); canvas.focus({preventScroll:true});
+    void options.onStatus('playing').catch(() => pause('つながりを確認してから、つづけてね。'));
+  }
+  function updateGesture(hands: DrawArm[], layout: Geometry, dt: number, tracked: boolean) {
+    if (mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
+    if (!tracked || !options.canPlay()) {
+      gestureHold.reset(phase === 'paused'); gestureProgress = 0; gestureTarget = null;
+      field.dataset.gestureProgress = '0'; return;
+    }
+    const targets = gestureTargets(layout);
+    // A stationary overlap is deliberate; a fly-by or a missing/stale pose resets the dwell.
+    const target = targets.findIndex(target => hands.some(hand => hand.active && Math.hypot(hand.hand.x-target.x,hand.hand.y-target.y) <= target.radius + layout.handRadius*.5));
+    gestureTarget = target < 0 ? null : target;
+    gestureProgress = gestureHold.update(gestureTarget, dt);
+    field.dataset.gestureProgress = String(gestureProgress);
+    if (gestureProgress >= 1) beginPlaying();
+  }
+  function drawGestureButtons(ctx: CanvasRenderingContext2D, layout: Geometry) {
+    if (mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
+    const ready = assetsReady && isTracked() && options.canPlay();
+    const label = phase === 'setup' ? 'はじめる' : 'つづける';
+    const targets = gestureTargets(layout);
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    targets.forEach((target,i) => {
+      ctx.fillStyle = ready ? '#de735d' : '#dbb4a2'; ctx.strokeStyle = '#fff9e9'; ctx.lineWidth = 4 * layout.scale;
+      ctx.beginPath(); ctx.arc(target.x,target.y,target.radius,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fffdf3'; ctx.font = `bold ${Math.max(12,16*layout.scale)}px ui-rounded, sans-serif`; ctx.fillText(label,target.x,target.y);
+      if (gestureTarget === i && gestureProgress > 0) {
+        ctx.strokeStyle = '#fffdf3'; ctx.lineWidth = Math.max(4,6*layout.scale); ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(target.x,target.y,target.radius+7*layout.scale,-Math.PI/2,-Math.PI/2+Math.PI*2*gestureProgress); ctx.stroke();
+      }
+    }); ctx.restore();
   }
   function refreshActions(){const actions=$('.game-actions');if(actions)actions.innerHTML=phase==='playing'?'<button class="button small secondary" data-game="pause">Ⅱ おやすみ</button><button class="text-button" data-game="finish">ここまでで おわる</button>':'';}
   function pause(message='じゅんびができたら、つづけよう。') {
     if(disposed||phase!=='playing')return;phase='paused';void options.onStatus('paused').catch(()=>{});
+    if(mode==='camera'){showGestureControls('resume',message);refreshActions();return;}
     const overlay=document.createElement('div');overlay.className='game-overlay';
     const card=document.createElement('div');card.className='overlay-card';
     card.innerHTML='<h2>ひとやすみ</h2><p></p><button class="button primary" data-game="resume">つづける →</button><button class="text-button" data-game="finish">ここまでで おわる</button>';
@@ -84,12 +141,14 @@ function tick(now: number) {
   const layout = avatarLayout(field.clientWidth, field.clientHeight);
   if (mode === 'camera') {
     updateTracking();
-    if (tracked) displayedArms = targetArms.map((arm, i) => ({ ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) })) as typeof targetArms;
+    displayedArms = targetArms.map((arm, i) => arm.valid && now-lastPose < trackingTimeout ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: false, raised: false }) as typeof targetArms;
   }
   const hands = displayedArms.map((arm, i) => placeArm({ ...arm, valid: tracked && arm.valid }, i, layout));
   const note = $('#tracking-note');
   if (note) note.textContent = mode === 'camera' && !tracked && phase === 'playing' ? '両ひじと両手をうつしてね。時間は止まっているよ。' : '';
   if (mode === 'camera') field.dataset.tracked = String(tracked);
+  field.dataset.phase = phase;
+  updateGesture(hands, layout, dt, tracked);
   basketX += (targetX - basketX) * (1 - Math.exp(-dt * 13));
   if (phase === 'playing' && tracked) {
     bounce = Math.max(0, bounce - dt * 3.5);
@@ -160,7 +219,8 @@ function draw() {
   const layout = avatarLayout(w, h);
   if (avatar) {
     avatar.background(ctx, w, h);
-    avatar.draw(ctx, layout, displayedArms.map((arm, i) => placeArm({ ...arm, valid: isTracked() && arm.valid }, i, layout)), cameraState === 'ready' && !isTracked(), performance.now());
+    drawGestureButtons(ctx, layout);
+    avatar.draw(ctx, layout, displayedArms.map((arm, i) => placeArm(arm, i, layout)), cameraState === 'ready' && !displayedArms.some(arm => arm.valid), performance.now());
   }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const emojiFont = (size: number) => `${size}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
@@ -215,16 +275,15 @@ function draw() {
   }
   function click(event:Event){
     const action=(event.target as HTMLElement).closest<HTMLElement>('[data-game]')?.dataset.game;
-    if(action==='prepare-camera')void prepareCamera();
-    if(action==='start'){if(!options.canPlay())return;if(mode==='camera'&&(cameraState!=='ready'||!assetsReady||!isTracked()))return;startAudio();phase='playing';container.querySelector('.game-overlay')?.remove();refreshActions();canvas.focus({preventScroll:true});void options.onStatus('playing').catch(()=>pause('つながりを確認してから、つづけてね。'));}
+    if(action==='prepare-camera'){if(event.isTrusted)startAudio();void prepareCamera();}
+    if(action==='start'||action==='resume')beginPlaying();
     if(action==='pause')pause();
-    if(action==='resume'){if(!options.canPlay())return;startAudio();phase='playing';container.querySelector('.game-overlay')?.remove();refreshActions();canvas.focus({preventScroll:true});void options.onStatus('playing').catch(()=>pause('つながりを確認してから、つづけてね。'));}
     if(action==='finish')finish();
     if(action==='retry-result')void submitResult();
   }
   function pointer(event:PointerEvent){if(mode!=='demo'||!(event.target as HTMLElement).closest('#field')||(event.target as HTMLElement).closest('button'))return;const rect=field.getBoundingClientRect();targetX=Math.max(.09,Math.min(.91,(event.clientX-rect.left)/rect.width));}
   function key(event:KeyboardEvent){if(mode!=='demo'||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();targetX=Math.max(.09,Math.min(.91,targetX+(event.key==='ArrowLeft'?-.07:.07)));}
-  function resize(){ previousHands = []; wasTracked = false; if(mode === 'camera'){const xs=avatarLayout(field.clientWidth,field.clientHeight).lanes;for(const item of items)item.x=xs[item.x<.5?0:1];}}
+  function resize(){ positionGestureButtons(); gestureHold.reset(phase === 'paused'); gestureProgress=0; previousHands = []; wasTracked = false; if(mode === 'camera'){const xs=avatarLayout(field.clientWidth,field.clientHeight).lanes;for(const item of items)item.x=xs[item.x<.5?0:1];}}
   window.addEventListener('resize',resize);
   function visibility(){if(document.hidden)pause('画面を離れたので、時間を止めたよ。');}
   container.addEventListener('click',click);container.addEventListener('pointermove',pointer);container.addEventListener('pointerdown',pointer);window.addEventListener('keydown',key);document.addEventListener('visibilitychange',visibility);

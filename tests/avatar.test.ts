@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { avatarLayout, faceCrop, firstHandCatch, placeArm, poseArms, smoothAngle, touchTime, type Landmark } from '../src/avatar.ts';
+import { avatarLayout, faceCrop, firstHandCatch, gestureTargets, GestureHold, placeArm, poseArms, smoothAngle, touchTime, type Landmark } from '../src/avatar.ts';
 function pose() {
   const points: Landmark[] = Array.from({ length: 33 }, () => ({ x: .5, y: .5, visibility: 0 }));
   const put = (i: number, x: number, y: number) => { points[i] = { x, y, visibility: 1 }; };
@@ -44,7 +44,9 @@ test('angle filtering takes the short path across the pi boundary', () => {
 });
 test('face crop follows ears, falls back to eyes, and stays square inside video', () => {
   const points = pose(), ears = faceCrop(points,640,480)!;
-  close(ears.size, .14 * 640 * 1.6);
+  close(ears.size, .14 * 640 * 2.1);
+  const noseFraction=(points[0].y*480-ears.y)/ears.size;
+  assert.ok(noseFraction>.5&&noseFraction<.6,'leave space below the nose for the chin');
   points[7].visibility = 0; assert.ok(faceCrop(points,640,480));
   points[2].visibility = 0; assert.equal(faceCrop(points,640,480),null);
   const edge = pose().map(p => ({ ...p, x: p.x - .4, y: p.y - .25 }));
@@ -76,4 +78,32 @@ test('lowered hands stay inside the field in portrait and landscape', () => {
     const arm = placeArm({upper:Math.PI/2,lower:Math.PI/2,valid:true,raised:false},0,l);
     assert.ok(arm.hand.y + 30 * l.scale < h);
   }
+});
+test('gesture targets are reachable by either raised hand across viewport shapes', () => {
+  for(const [w,h] of [[340,360],[740,620],[1048,480]]) {
+    const layout=avatarLayout(w,h), targets=gestureTargets(layout);
+    targets.forEach((target,i)=>{
+      const arm=placeArm({upper:i===0?-2.55:-.59,lower:i===0?-2.02:-1.12,valid:true,raised:true},i,layout);
+      assert.ok(Math.hypot(arm.hand.x-target.x,arm.hand.y-target.y)<target.radius);
+      assert.ok(target.x-target.radius>=0&&target.x+target.radius<=w&&target.y-target.radius>=0);
+      assert.ok(Math.hypot(target.x-layout.face.x,target.y-layout.face.y)>target.radius+layout.face.radius);
+    });
+  }
+});
+test('gesture dwell rejects fly-bys and resets on leaving, changing targets or detection loss', () => {
+  const hold=new GestureHold();
+  assert.ok(hold.update(0,.05)>0);
+  assert.equal(hold.update(null,.05),0);
+  for(let i=0;i<5;i++)hold.update(0,.05);
+  assert.ok(hold.update(1,.05)<.1);
+  hold.reset(); assert.ok(hold.update(1,.05)<.1);
+  let progress=0;for(let i=0;i<13;i++)progress=hold.update(1,.05);
+  assert.equal(progress,1);
+});
+test('resume requires releasing the target and a long delayed frame cannot activate a gesture', () => {
+  const hold=new GestureHold();hold.reset(true);
+  for(let i=0;i<30;i++)assert.equal(hold.update(0,.05),0);
+  hold.update(null,.05); assert.ok(hold.update(0,5)<.12);
+  let progress=0;for(let i=0;i<13;i++)progress=hold.update(0,.05);
+  assert.equal(progress,1);
 });

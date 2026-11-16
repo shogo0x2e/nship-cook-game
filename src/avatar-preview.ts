@@ -6,8 +6,8 @@ import { type Landmark } from './avatar';
 
 // A separate local review page, with no login, session writes or evidence upload.
 const root = document.querySelector<HTMLDivElement>('#app')!;
-root.innerHTML = `<header class="header"><span class="brand">🌱 もぐもぐキャッチ</span><a href="/" class="text-button">家庭アカウントの画面へ</a></header><main class="page game-page"><div class="poc-toolbar"><div><span class="audience">アバターの試作</span><p>カメラで感触を試せます。このページの結果は家庭アカウントには送りません。</p></div><div class="poc-modes"><button class="button small primary" data-mode="camera">カメラで試す</button><button class="button small secondary" data-mode="sample">動きの見本</button><button class="text-button" data-mode="demo">かごで試す</button></div></div><div id="sample-controls" class="sample-controls" hidden><span>見本の動き・カメラ不使用</span><label>動き <select id="sample-pose"><option value="auto">左右に手をのばす</option><option value="left">左だけ上げる</option><option value="right">右だけ上げる</option><option value="both">両手を上げる</option><option value="down">両手を下げる</option><option value="lost">検出が切れたとき</option></select></label></div><div id="preview-game"></div></main>`;
-let pose = 'auto';
+root.innerHTML = `<header class="header"><span class="brand">🌱 もぐもぐキャッチ</span><a href="/" class="text-button">家庭アカウントの画面へ</a></header><main class="page game-page"><div class="poc-toolbar"><div><span class="audience">アバターの試作</span><p>カメラで感触を試せます。このページの結果は家庭アカウントには送りません。</p></div><div class="poc-modes"><button class="button small primary" data-mode="camera">カメラで試す</button><button class="button small secondary" data-mode="sample">動きの見本</button><button class="text-button" data-mode="demo">かごで試す</button></div></div><div id="sample-controls" class="sample-controls" hidden><span>見本の動き・カメラ不使用</span><label>動き <select id="sample-pose"><option value="auto">左右に手をのばす</option><option value="left">左だけ上げる</option><option value="right">右だけ上げる</option><option value="both">両手を上げる</option><option value="down" selected>両手を下げる</option><option value="cross">胸の前で腕を曲げる</option><option value="lost">検出が切れたとき</option></select></label></div><div id="preview-game"></div></main>`;
+let pose = 'down';
 root.querySelector('#sample-pose')!.addEventListener('change', event => { pose = (event.target as HTMLSelectElement).value; });
 class SampleCamera implements CameraSource {
   private frame = 0;
@@ -27,8 +27,8 @@ class SampleCamera implements CameraSource {
       const right = pose === 'both' || pose === 'right' || (pose === 'auto' && !left);
       [[11, 13, 15], [12, 14, 16]].forEach(([s, e, w], side) => {
         const lifted = side === 0 ? left : right;
-        const upper = side === 0 ? (lifted ? -2.55 : 2.2) : (lifted ? -.59 : .94);
-        const lower = side === 0 ? (lifted ? -2.02 : 1.7) : (lifted ? -1.12 : 1.44);
+        const upper = pose === 'cross' ? (side === 0 ? .9 : 2.24) : side === 0 ? (lifted ? -2.55 : 2.2) : (lifted ? -.59 : .94);
+        const lower = pose === 'cross' ? (side === 0 ? -.45 : 3.59) : side === 0 ? (lifted ? -2.02 : 1.7) : (lifted ? -1.12 : 1.44);
         put(s, side === 0 ? .6 : .4, .58);
         put(e, points[s].x - Math.cos(upper) * 74 / 640, points[s].y + Math.sin(upper) * 74 / 480);
         put(w, points[e].x - Math.cos(lower) * 70 / 640, points[e].y + Math.sin(lower) * 70 / 480);

@@ -46,10 +46,6 @@ export class AvatarRenderer {
   }
   draw(ctx: CanvasRenderingContext2D, layout: Geometry, arms: DrawArm[], sleeping: boolean, time: number) {
     const { scale: s, center: c, face: f } = layout;
-    for (const arm of arms) {
-      this.segment(ctx, arm.shoulder, arm.elbow, 47 * s);
-      this.segment(ctx, arm.elbow, arm.wrist, 43 * s);
-    }
     paint(ctx, this.sprites.body, c.x - 107 * s, c.y - 28 * s, 214 * s, 214 * s);
     ctx.save(); ctx.beginPath(); ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2); ctx.fillStyle = '#fff8e5'; ctx.fill(); ctx.clip();
     if (this.hasFace) ctx.drawImage(this.face, f.x - f.radius, f.y - f.radius, f.radius * 2, f.radius * 2);
@@ -61,6 +57,9 @@ export class AvatarRenderer {
     if (sleeping) { ctx.fillStyle = '#f5f0e555'; ctx.fillRect(f.x - f.radius, f.y - f.radius, f.radius * 2, f.radius * 2); }
     ctx.restore(); ctx.strokeStyle = '#fff9e9'; ctx.lineWidth = 6 * s; ctx.beginPath(); ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2); ctx.stroke();
     arms.forEach((arm, side) => {
+      // Each complete arm is in front of the torso, including when crossing the apron.
+      this.segment(ctx, arm.shoulder, arm.elbow, 47 * s);
+      this.segment(ctx, arm.elbow, arm.wrist, 43 * s);
       ctx.save(); ctx.translate(arm.hand.x, arm.hand.y); ctx.rotate(Math.atan2(arm.hand.y - arm.wrist.y, arm.hand.x - arm.wrist.x) + Math.PI / 2);
       if (side === 1) ctx.scale(-1, 1);
       paint(ctx, this.sprites.hand, -24 * s, -30 * s, 48 * s, 57 * s); ctx.restore();

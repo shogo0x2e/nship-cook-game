@@ -37,9 +37,10 @@ export function faceCrop(points: Landmark[], width: number, height: number): Cro
   if (!good(a) || !good(b)) return null;
   const span = Math.hypot((a.x - b.x) * width, (a.y - b.y) * height);
   if (span < width * .025) return null;
-  const size = Math.min(width, height, Math.max(32, span * (ears ? 1.6 : 3.6)));
+  // Leave room for hair and chin inside a circular mask, including when using the eyes.
+  const size = Math.min(width, height, Math.max(32, span * (ears ? 2.1 : 4.8)));
   const cx = (a.x + b.x) * width / 2;
-  const cy = nose.y * height - size * .14;
+  const cy = nose.y * height - size * .06;
   return { x: Math.max(0, Math.min(width - size, cx - size / 2)), y: Math.max(0, Math.min(height - size, cy - size / 2)), size };
 }
 export function avatarLayout(width: number, height: number) {
@@ -51,6 +52,23 @@ export function avatarLayout(width: number, height: number) {
     face: { x: center.x, y: center.y - 72 * scale, radius: 63 * scale } };
 }
 export type Geometry = ReturnType<typeof avatarLayout>;
+export function gestureTargets(layout: Geometry) {
+  return [-1, 1].map(side => ({ x: layout.center.x + side * 190 * layout.scale, y: layout.center.y - 150 * layout.scale, radius: Math.max(26, 48 * layout.scale) }));
+}
+export const gestureHoldSeconds = .65;
+export class GestureHold {
+  private target: number | null = null;
+  private elapsed = 0;
+  private armed = true;
+  reset(requireRelease = false) { this.target = null; this.elapsed = 0; this.armed = !requireRelease; }
+  update(target: number | null, dt: number) {
+    if (!this.armed) { if (target === null) this.armed = true; return 0; }
+    if (target === null || target !== this.target) this.elapsed = 0;
+    this.target = target;
+    if (target !== null) this.elapsed += Math.min(.07, Math.max(0, dt));
+    return Math.min(1, this.elapsed / gestureHoldSeconds);
+  }
+}
 export type DrawArm = { shoulder: Point; elbow: Point; wrist: Point; hand: Point; active: boolean };
 export function placeArm(arm: Arm, side: number, layout: Geometry): DrawArm {
   const shoulder = { x: layout.center.x + (side === 0 ? -1 : 1) * layout.shoulderOffset, y: layout.center.y };
