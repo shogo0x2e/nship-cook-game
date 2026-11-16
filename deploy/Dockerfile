@@ -24,6 +24,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 # The server imports TypeScript shared/content/game modules at runtime.
 COPY --from=build --chown=node:node /app/server ./server
 COPY --from=build --chown=node:node /app/src ./src
+COPY --chown=node:node scripts/reset-password.mjs ./scripts/reset-password.mjs
 USER node
 EXPOSE 8787
 CMD ["node", "server/server.ts"]

@@ -32,7 +32,7 @@ def verify_image(image, revision):
         base = 'http://127.0.0.1:' + port
         for _ in range(45):
             try:
-                with urllib.request.urlopen(base + '/api/version', timeout=2) as response:
+                with urllib.request.urlopen(urllib.request.Request(base + '/api/version', headers={'Host': 'localhost:8787'}), timeout=2) as response:
                     version = json.load(response)
                 assert version == {'revision': revision, 'authentication': 'family-account-v1'}, version
                 break
@@ -41,7 +41,7 @@ def verify_image(image, revision):
         else:
             raise RuntimeError('Account image did not become ready')
         try:
-            urllib.request.urlopen(base + '/api/auth/me', timeout=3)
+            urllib.request.urlopen(urllib.request.Request(base + '/api/auth/me', headers={'Host': 'localhost:8787'}), timeout=3)
         except urllib.error.HTTPError as error:
             assert error.code == 401
         else:
