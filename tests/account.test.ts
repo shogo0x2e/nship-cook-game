@@ -24,13 +24,27 @@ test('accounts use unique salts and slow hashes; case-normalized login, logout a
   await asyncRejects(()=>accounts.login({...credentials,password:'this is the wrong password'}),401);
   await asyncRejects(()=>accounts.login({...credentials,username:'unknown_family'}),401);
   await asyncRejects(()=>accounts.register(credentials),409);
-  await asyncRejects(()=>accounts.register({...credentials,password:'short'}),400);
+  await asyncRejects(()=>accounts.register({...credentials,password:'abc'}),400);
   await asyncRejects(()=>accounts.register({...credentials,video:'no'}),400);
   accounts.logout(b.token);rejects(()=>accounts.authenticate(b.token),401);
   await accounts.resetPassword(credentials.username,'the new password is a long phrase');
   rejects(()=>accounts.authenticate(a.token),401);
   await asyncRejects(()=>accounts.login(credentials),401);
   assert.equal((await accounts.login({...credentials,password:'the new password is a long phrase'})).account.id,a.account.id);
+ }finally{accounts.close();}
+});
+test('four-character passwords work for registration, login and reset; three characters are rejected',async()=>{
+ const accounts=new AccountStore();
+ try{
+  const short={username:'four_chars',password:'poc4'};
+  await asyncRejects(()=>accounts.register({...short,password:'abc'}),400);
+  const registered=await accounts.register(short);
+  assert.equal((await accounts.login(short)).account.id,registered.account.id);
+  await asyncRejects(()=>accounts.login({...short,password:'abc'}),400);
+  await asyncRejects(()=>accounts.resetPassword(short.username,'abc'),400);
+  await accounts.resetPassword(short.username,'next');
+  assert.equal((await accounts.login({...short,password:'next'})).account.id,registered.account.id);
+  rejects(()=>accounts.authenticate(registered.token),401);
  }finally{accounts.close();}
 });
 test('account sessions expire and sessions are stored as hashes',async()=>{

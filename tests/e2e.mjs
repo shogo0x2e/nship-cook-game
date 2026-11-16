@@ -11,7 +11,7 @@ const adultContext=await browser.newContext({viewport:{width:390,height:844},isM
 const childContext=await browser.newContext({viewport:{width:820,height:1180},hasTouch:true});
 const adult=await adultContext.newPage(),child=await childContext.newPage();
 const errors=[],unexpected=[],bodies=[],checks=[];
-const username=`family_${Date.now()}`,password='a long household passphrase';
+const username=`family_${Date.now()}`,password='poc4';
 for(const page of [adult,child]){
  page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
  page.on('request',req=>{if(!req.url().startsWith(base+'/'))unexpected.push(req.url());if(req.method()==='POST'&&!req.url().includes('/api/auth/'))bodies.push(req.postDataJSON());});
@@ -32,7 +32,7 @@ try{
  await child.locator('[data-action="start-demo"]').waitFor();
  const cookies=await childContext.cookies();assert.ok(cookies.some(cookie=>cookie.name==='cookgame_session'&&cookie.httpOnly&&cookie.sameSite==='Strict'));
  assert.equal(await child.evaluate(()=>Object.values(sessionStorage).some(value=>/token|password/i.test(value))),false);
- check('username/password registration, HttpOnly session and code-free child screen');
+ check('four-character password registration, HttpOnly session and code-free child screen');
  // Adult has never logged in: starting is entirely child-controlled.
  await click(child,'start-demo');await child.locator('[data-game="start"]').click();
  await child.locator('[data-game="pause"]').click();await child.locator('[data-game="resume"]').click();

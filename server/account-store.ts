@@ -11,7 +11,7 @@ const digest = (token: string) => createHash('sha256').update(token).digest('hex
 function credentials(value: unknown) {
   const { username, password } = strictObject(value, ['username', 'password']);
   if (typeof username !== 'string' || !/^[a-zA-Z0-9_-]{3,32}$/.test(username)) throw new SessionError(400, 'Username must be 3-32 letters, digits, _ or -');
-  if (typeof password !== 'string' || [...password].length < 15 || [...password].length > 128 || Buffer.byteLength(password) > 512) throw new SessionError(400, 'Password must be 15-128 characters');
+  if (typeof password !== 'string' || [...password].length < 4 || [...password].length > 128 || Buffer.byteLength(password) > 512) throw new SessionError(400, 'Password must be 4-128 characters');
   return { username: username.toLowerCase(), password };
 }
 const hash = (password: string, salt: string) => new Promise<Buffer>((resolve, reject) => scrypt(password, salt, 64, parameters, (error, key) => error ? reject(error) : resolve(key)));
