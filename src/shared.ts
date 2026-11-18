@@ -1,24 +1,25 @@
 import type { IngredientId } from './content.ts';
 import type { Evidence } from './game.ts';
+import type { ChallengeProgress, ChallengeResult, DailyFeedback, PlayVariant } from './challenge.ts';
 export type Role = 'adult' | 'child';
 export type CookingStep = { id: string; role: Role; title: string; detail: string; requires: string[] };
 export type RoomState = {
   revision: number; stage: 'lobby' | 'game' | 'review' | 'cooking' | 'complete';
   excluded: IngredientId[]; allergens: string[]; childJoined: boolean;
-  game: { roundId: string; status: 'idle' | 'ready' | 'playing' | 'paused' | 'finished'; input: 'camera' | 'demo'; elapsed: number; evidence: Evidence };
+  game: { roundId: string; status: 'idle' | 'ready' | 'playing' | 'paused' | 'finished'; input: 'camera' | 'demo'; variant?: PlayVariant; elapsed: number; evidence: Evidence };
   selected: IngredientId[]; selectedRecipeId: string | null;
   cooking: { activeStepId: string | null; completedStepIds: string[]; childReportStepId: string | null };
 };
 export type RoomAction =
-  | { type: 'START_GAME'; input: 'camera' | 'demo' }
+  | { type: 'START_GAME'; input: 'camera' | 'demo'; variant?: PlayVariant }
   | { type: 'GAME_STATUS'; roundId: string; status: 'playing' | 'paused' }
-  | { type: 'GAME_RESULT'; roundId: string; evidence: Evidence }
+  | { type: 'GAME_RESULT'; roundId: string; evidence: Evidence; challenge?: ChallengeResult }
   | { type: 'SET_SELECTED'; selected: IngredientId[] }
   | { type: 'CHOOSE_RECIPE'; recipeId: string }
   | { type: 'ACTIVATE_STEP' | 'COMPLETE_STEP' | 'CHILD_DONE'; stepId: string }
   | { type: 'BACK_TO_REVIEW' | 'CANCEL_GAME' };
-export type FamilyState = RoomState & { latestResultAt: number | null };
-export type FamilyAction = RoomAction | { type: 'SET_SETTINGS'; excluded: IngredientId[]; allergens: string[] };
+export type FamilyState = RoomState & { latestResultAt: number | null; challenge?: ChallengeProgress };
+export type FamilyAction = RoomAction | { type: 'SET_SETTINGS'; excluded: IngredientId[]; allergens: string[] } | { type: 'CHALLENGE_FEEDBACK'; roundId: string; feedback: DailyFeedback };
 export type FamilySnapshot = { state: FamilyState };
 export type RoomResponse = { roomId: string; code: string; token: string; state: RoomState; role: Role };
 export type RoomSnapshot = { state: RoomState; role: Role; code: string };

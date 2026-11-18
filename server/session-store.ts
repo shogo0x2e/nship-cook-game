@@ -25,12 +25,13 @@ function validText(value:unknown): string { if(typeof value!=='string'||value.le
 function available(state:RoomState,id:IngredientId) { const food=ingredients.find(i=>i.id===id)!; return !state.excluded.includes(id)&&!food.allergens.some(a=>state.allergens.includes(a)); }
 export function validateEvidence(value:unknown,state:RoomState): Evidence {
   const obj=strictObject(value,foodIds); const result=freshEvidence();
+  const limit=state.game.variant==='challenge'?128:64;
   for(const id of foodIds){const entry=strictObject(obj[id],['offered','caught']); const offered=entry.offered,caught=entry.caught;
-    if(typeof offered!=='number'||typeof caught!=='number'||!Number.isInteger(offered)||!Number.isInteger(caught)||offered<0||offered>64||caught<0||caught>offered) return fail(400,'Invalid evidence');
+    if(typeof offered!=='number'||typeof caught!=='number'||!Number.isInteger(offered)||!Number.isInteger(caught)||offered<0||offered>limit||caught<0||caught>offered) return fail(400,'Invalid evidence');
     if(!available(state,id)&&(offered!==0||caught!==0)) return fail(400,'Excluded ingredient in result');
     result[id]={offered,caught};
   }
-  if(Object.values(result).reduce((sum,v)=>sum+v.offered,0)>64) return fail(400,'Too many offers');
+  if(Object.values(result).reduce((sum,v)=>sum+v.offered,0)>limit) return fail(400,'Too many offers');
   return result;
 }
 const actionKeys:Record<RoomAction['type'],string[]>={START_GAME:['type','input'],GAME_STATUS:['type','roundId','status'],GAME_RESULT:['type','roundId','evidence'],SET_SELECTED:['type','selected'],CHOOSE_RECIPE:['type','recipeId'],ACTIVATE_STEP:['type','stepId'],COMPLETE_STEP:['type','stepId'],CHILD_DONE:['type','stepId'],BACK_TO_REVIEW:['type'],CANCEL_GAME:['type']};

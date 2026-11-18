@@ -2,10 +2,17 @@ import { basketWidth, caughtAtBasket, freshEvidence, ingredients, lanes, maxPair
 import { PoseCamera, type Tracking, type CameraSource } from './pose';
 import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, trackingTimeout, type DrawArm, type Geometry } from './avatar';
 import { AvatarRenderer } from './avatar-renderer';
+import { challengeSeconds, challengeMaxPairs, catchPoints, challengeScore, type ChallengeResult, type CatchMoment, type PlayVariant } from './challenge';
 
-type Options = { input: 'camera' | 'demo'; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
+type Options = { input: 'camera' | 'demo'; variant?:PlayVariant; best?:number; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence,challenge?:ChallengeResult) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
 export function mountGame(container: HTMLElement, options: Options) {
   const mode = options.input;
+  const challenge=options.variant==='challenge';
+  let activeSeconds=0,spawnAtMs=0,countdown=challenge?3:0;
+  const catches:CatchMoment[]=[];
+  let result:ChallengeResult|undefined;
+  let score=0,scorePulse=0;
+  const scorePops:{x:number;y:number;points:number;life:number;plate:boolean}[]=[];
   let phase: 'setup'|'playing'|'paused'|'finished' = 'setup';
   let disposed = false;
   let cameraState = mode === 'camera' ? 'idle' : 'ready';
@@ -21,9 +28,11 @@ export function mountGame(container: HTMLElement, options: Options) {
   let evidence = freshEvidence();
   let basketX = .5, targetX = .5, lastFrame = 0, animation = 0;
   // Feel knobs: fall speed (field heights per second), pause between pairs, and plate celebration length.
-  const fallSpeed = .22, pairGap = .5, celebration = 1.5;
+  let fallSpeed = challenge ? .34 : .22;
+  const pairGap = challenge ? .18 : .5, celebration = challenge ? .45 : 1.5;
   const foods = ingredients.filter(i => options.allowed.includes(i.id)).map(i => i.id);
-  const schedule = pairSchedule(foods, maxPairs);
+  const pairLimit=challenge?challengeMaxPairs:maxPairs;
+  const schedule = pairSchedule(foods, pairLimit);
   const emojiOf = (id: IngredientId) => ingredients.find(i => i.id === id)!.emoji;
   // One pair is on screen at a time. The unpicked one floats away ('leaving'); nothing is ever marked wrong.
   let items: {id:IngredientId;x:number;y:number;rotation:number;leaving:boolean;life:number}[] = [];
@@ -35,6 +44,16 @@ export function mountGame(container: HTMLElement, options: Options) {
   container.innerHTML = `<div class="game-heading"><span class="pill">${mode === 'camera' ? 'すきなほうへ、てをのばそう！' : 'カメラなし・おためし'}</span><span class="game-counter" id="counter">おさら <b>1</b> / ${plateCount}</span></div><section class="field ${mode === 'camera' ? 'camera-field' : ''}" id="field" aria-label="${mode === 'camera' ? '座ったまま手を伸ばして、ふたつのうち ひとつを えらぶ' : '左右にかごを動かして、ふたつのうち ひとつを えらぶ'}"><video id="camera" autoplay muted playsinline class="camera-video avatar-source" ${mode === 'demo' ? 'hidden':''}></video><div class="field-tint"></div><canvas id="game-canvas" tabindex="0" role="img" aria-label="食材キャッチの遊び場"></canvas><div id="tracking-note" class="tracking-note" role="status"></div><div class="game-overlay setup-overlay"><div class="overlay-card"><span class="overlay-icon">${mode === 'camera' ? '🌱' : '🧺'}</span><h2>${mode==='camera'?'すわって、てをのばそう。':'かごを、左右へ。'}</h2><p>${mode==='camera'?'顔と両ひじ・両手が うつるようにしてね。<br>肩より上に手をのばして、すきな食材にタッチ。<br>どっちでも、とらなくても、だいじょうぶ。':'ふたつ おちてくるよ。すきなほうを ひとつ。<br>どっちでも、とらなくても、だいじょうぶ。'}</p><p class="camera-status" id="camera-status" role="status">${mode==='camera'?'映像はこのタブレットの中だけで使います。':'映像は使いません。'}</p>${mode==='camera'?'<button class="button primary" data-game="prepare-camera">カメラを じゅんびする</button>':''}<button class="button primary" id="start-button" data-game="start" ${mode==='camera'?'disabled':''}>はじめる →</button></div></div></section><div class="game-bottom"><div class="caught-strip"><span>きょうの おさら</span><div class="plates" id="plates"></div></div><div class="game-actions"></div></div><p class="game-help">${mode==='camera'?'すわったまま、肩より上に手をのばしてね。手の輪がタッチの目印だよ。':'指・マウスを左右へ / ← → キーでも動かせます。おさらに 3つ のせよう。'}</p>${mode === 'camera' ? '<details class="tracking-debug"><summary>大人向け：カメラと検出の確認</summary><div class="debug-content"><canvas id="pose-debug" width="320" height="240" aria-label="端末内のカメラと肩・肘・手首の検出"></canvas><div><p id="pose-metrics"></p><p>緑の点：検出できています。点が途切れたら、顔と両ひじ・両手が入るようにカメラを調整してください。立ったり歩いたりする必要はありません。</p><p>この映像・点・顔画像は端末内だけで使い、送信・保存しません。</p></div></div></details>' : ''}`;
   const canvas = $<HTMLCanvasElement>('#game-canvas')!;
   const field = $('#field')!;
+  if(challenge){
+    container.classList.add('challenge-game');field.dataset.variant='challenge';
+    $('#counter')!.innerHTML=`あと <b id="challenge-time">${challengeSeconds}</b> 秒`;
+    const hud=document.createElement('div');hud.className='challenge-hud';
+    hud.innerHTML=`<div><span>SCORE</span><strong id="live-score">0</strong></div><div class="live-best"><span>自己ベスト</span><strong>${(options.best??0).toLocaleString('ja-JP')}</strong><span id="best-target">${options.best?'記録をこえよう':'はじめての記録をつくろう'}</span></div><progress id="challenge-clock" max="${challengeSeconds}" value="${challengeSeconds}" aria-label="残り時間"></progress>`;
+    field.before(hud);
+    $('.setup-overlay h2')!.textContent='45秒、好きな食材をキャッチ。';
+    $('.setup-overlay .overlay-card>p')!.innerHTML='すばやく取るとボーナス。3個でおさら完成！<br>どの食材も同じ点。見送りの減点はありません。';
+    $('.game-help')!.textContent=mode==='camera'?'好きなほうへ手をのばそう。カメラが見失った間は、時間も止まります。':'指・マウス・← → キーで移動。見送っても減点なし。';
+  }
   const video = $<HTMLVideoElement>('#camera')!;
   const camera = (options.cameraFactory ?? (callback => new PoseCamera(callback)))(tracking => {
     if (disposed) return;
@@ -131,9 +150,9 @@ export function mountGame(container: HTMLElement, options: Options) {
   }
   async function submitResult(){
     const message=$('#result-message');if(message)message.textContent='結果を大人に送っています…';
-    try{await options.onFinish(evidence);}catch{if(disposed)return;if(message)message.textContent='送れませんでした。つながったら、もう一度送ってね。';const retry=$('[data-game="retry-result"]');if(retry)retry.hidden=false;}
+    try{await options.onFinish(evidence,result);}catch{if(disposed)return;if(message)message.textContent='送れませんでした。つながったら、もう一度送ってね。';const retry=$('[data-game="retry-result"]');if(retry)retry.hidden=false;}
   }
-  function finish(){if(phase==='finished'||disposed)return;phase='finished';camera.stop();video.srcObject=null;void audio?.close().catch(()=>{});audio=null;avatar?.destroy();cancelAnimationFrame(animation);const served=plates.filter(plate=>plate.length);container.innerHTML='<div class="child-center"><h1>おしまい！</h1>'+(served.length?`<div class="result-plates"><span>きょうの おさら</span>${platesHtml(served)}</div>`:'')+'<p id="result-message">結果を大人に送っています…</p><button class="button primary" data-game="retry-result" hidden>もう一度 送る</button></div>';void submitResult();}
+  function finish(completed=false){if(phase==='finished'||disposed)return;phase='finished';if(challenge)result={activeMs:completed?challengeSeconds*1000:Math.min(challengeSeconds*1000,Math.round(activeSeconds*1000)),completed,catches:[...catches]};camera.stop();video.srcObject=null;void audio?.close().catch(()=>{});audio=null;avatar?.destroy();cancelAnimationFrame(animation);const served=plates.filter(plate=>plate.length);container.innerHTML='<div class="child-center"><h1>おしまい！</h1>'+(served.length?`<div class="result-plates"><span>きょうの おさら</span>${platesHtml(served)}</div>`:'')+'<p id="result-message">結果を大人に送っています…</p><button class="button primary" data-game="retry-result" hidden>もう一度 送る</button></div>';void submitResult();}
 function tick(now: number) {
   if (disposed || phase === 'finished' || !canvas || !field) return;
   const dt = lastFrame ? Math.min((now - lastFrame) / 1000, .07) : 0; lastFrame = now;
@@ -151,13 +170,28 @@ function tick(now: number) {
   updateGesture(hands, layout, dt, tracked);
   basketX += (targetX - basketX) * (1 - Math.exp(-dt * 13));
   if (phase === 'playing' && tracked) {
+    if(challenge&&countdown>0){
+      const previous=Math.ceil(countdown);countdown=Math.max(0,countdown-dt);
+      if(Math.ceil(countdown)!==previous)tone(countdown===0?1047:523,0,.1);
+      draw();drawDebug(now);animation=requestAnimationFrame(tick);return;
+    }
+    if(challenge){
+      activeSeconds=Math.min(challengeSeconds,activeSeconds+dt);field.dataset.activeMs=String(Math.round(activeSeconds*1000));
+      const left=Math.ceil(challengeSeconds-activeSeconds);$('#challenge-time')!.textContent=String(left);
+      ($<HTMLProgressElement>('#challenge-clock')!).value=challengeSeconds-activeSeconds;
+      field.classList.toggle('last-seconds',left<=10);
+      if(activeSeconds>=challengeSeconds){finish(true);return;}
+      fallSpeed=.34+.14*(activeSeconds/challengeSeconds);
+      scorePulse=Math.max(0,scorePulse-dt*3);
+      scorePops.forEach(pop=>pop.life-=dt*1.2);for(let i=scorePops.length-1;i>=0;i--)if(scorePops[i].life<=0)scorePops.splice(i,1);
+    }
     bounce = Math.max(0, bounce - dt * 3.5);
     if (celebrate > 0) {
       celebrate -= dt;
-      if (celebrate <= 0) { if (plates.length >= plateCount) { finish(); return; } plates.push([]); renderPlates(); }
+      if (celebrate <= 0) { if (!challenge&&plates.length >= plateCount) { finish(); return; } plates.push([]); renderPlates(); }
     } else if (!items.length) {
       gap -= dt;
-      if (gap <= 0) { if (spawned >= maxPairs || !foods.length) { finish(); return; } spawn(); }
+      if (gap <= 0) { if (!foods.length||(!challenge&&spawned>=pairLimit)) { finish(); return; } if(spawned<pairLimit)spawn(); }
     }
     const falling = items.filter(item => !item.leaving);
     for (const item of items) {
@@ -176,6 +210,15 @@ function tick(now: number) {
       evidence[picked.id].caught++;
       items = items.filter(item => item !== picked);
       const plate = plates[plates.length - 1]; plate.push(picked.id); renderPlates();
+      if(challenge){
+        const atMs=Math.round(activeSeconds*1000),reactionMs=Math.max(0,atMs-spawnAtMs);
+        catches.push({atMs,reactionMs});score=challengeScore(catches);scorePulse=1;
+        const plateBonus=plate.length===plateSize;
+        scorePops.push({x:picked.x,y:mode==='camera'?picked.y:.78,points:catchPoints(reactionMs)+(plateBonus?150:0),life:1,plate:plateBonus});
+        $('#live-score')!.textContent=score.toLocaleString('ja-JP');
+        $('#best-target')!.textContent=score>(options.best??0)?'完走で自己ベスト！':`あと${((options.best??0)-score+1).toLocaleString('ja-JP')}点で更新`;
+        $('.challenge-hud')!.classList.remove('score-bump');void $('.challenge-hud')!.offsetWidth;$('.challenge-hud')!.classList.add('score-bump');
+      }
       pops.push({ x: picked.x, y: mode === 'camera' ? picked.y : .8, emoji: emojiOf(picked.id), life: 1 }); bounce = 1;
       // The same feedback for every food, so the effect never tells the child which one to want.
       if (plate.length >= plateSize) { celebrate = celebration; [523, 659, 784, 1047].forEach((freq, i) => tone(freq, i * .11, .3)); }
@@ -190,6 +233,7 @@ function tick(now: number) {
   draw(); drawDebug(now); animation = requestAnimationFrame(tick);
 }
 function spawn() {
+  spawnAtMs=Math.round(activeSeconds*1000);
   const ids = schedule.length ? schedule[spawned] : [foods[0]];
   const positions = mode === 'camera' ? avatarLayout(field.clientWidth, field.clientHeight).lanes : lanes;
   const xs = ids.length === 2 ? positions : [positions[spawned % 2]];
@@ -200,8 +244,8 @@ function platesHtml(list: IngredientId[][], current = -1) {
   return list.map((plate, index) => `<span class="plate${index === current ? ' current' : ''}${plate.length >= plateSize ? ' full' : ''}">${Array.from({ length: plateSize }, (_, slot) => `<i>${plate[slot] ? emojiOf(plate[slot]) : ''}</i>`).join('')}</span>`).join('');
 }
 function renderPlates() {
-  const holder = $('#plates'); if (holder) holder.innerHTML = platesHtml(Array.from({ length: plateCount }, (_, index) => plates[index] ?? []), plates.length - 1);
-  const counter = $('#counter b'); if (counter) counter.textContent = String(Math.min(plates.length, plateCount));
+  const holder = $('#plates'); if (holder) holder.innerHTML = challenge?platesHtml(plates.slice(-3),Math.min(plates.length,3)-1):platesHtml(Array.from({ length: plateCount }, (_, index) => plates[index] ?? []), plates.length - 1);
+  const counter = $('#counter b'); if (counter&&!challenge) counter.textContent = String(Math.min(plates.length, plateCount));
 }
 function startAudio() { try { audio ??= new AudioContext(); void audio.resume(); } catch { audio = null; } }
 function tone(freq: number, delay: number, length = .16) {
@@ -247,6 +291,21 @@ function draw() {
     ctx.font = emojiFont(size * (1 + grow * .3)); ctx.fillText(pop.emoji, pop.x * w, (pop.y - grow * .12) * h);
   }
   ctx.globalAlpha = 1;
+  if(challenge){
+    for(const pop of scorePops){
+      ctx.save();ctx.globalAlpha=Math.max(0,pop.life);ctx.translate(pop.x*w,(pop.y-(1-pop.life)*.14)*h);
+      ctx.fillStyle=pop.plate?'#a04712':'#245a3e';ctx.strokeStyle='#fffdf5';ctx.lineWidth=6;
+      ctx.font=`900 ${Math.min(w*.065,42)*(1+scorePulse*.1)}px ui-rounded,sans-serif`;
+      ctx.strokeText(`+${pop.points}`,0,0);ctx.fillText(`+${pop.points}`,0,0);
+      if(pop.plate){ctx.font=`bold ${Math.min(w*.03,20)}px sans-serif`;ctx.fillText('おさら完成！',0,28);}
+      ctx.restore();
+    }
+    if(countdown>0&&phase==='playing'){
+      ctx.save();ctx.fillStyle='#fffdf5dc';ctx.fillRect(0,0,w,h);ctx.fillStyle='#285e42';
+      ctx.font=`900 ${Math.min(w*.2,120)}px ui-rounded,sans-serif`;ctx.fillText(String(Math.ceil(countdown)),w/2,h*.43);
+      ctx.font='bold 20px sans-serif';ctx.fillText('好きなほうを、すばやくキャッチ',w/2,h*.57);ctx.restore();
+    }
+  }
   if (celebrate > 0) {
     const shown = Math.min(1, (celebration - celebrate) * 5, celebrate * 4), scale = .8 + shown * .2, size = Math.min(w * .09, 76);
     ctx.save(); ctx.globalAlpha = shown; ctx.translate(w / 2, h * .4); ctx.scale(scale, scale);
