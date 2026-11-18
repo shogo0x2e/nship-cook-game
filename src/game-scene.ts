@@ -1,11 +1,12 @@
-import { basketWidth, caughtAtBasket, freshEvidence, ingredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Evidence } from './game';
+import { basketWidth, caughtAtBasket, freshEvidence, ingredients as legacyIngredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Pair, type Evidence } from './game';
 import { PoseCamera, type Tracking, type CameraSource } from './pose';
 import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, trackingTimeout, type DrawArm, type Geometry } from './avatar';
 import { AvatarRenderer } from './avatar-renderer';
 import { challengeSeconds, challengeMaxPairs, catchPoints, challengeScore, type ChallengeResult, type CatchMoment, type PlayVariant } from './challenge';
 
-type Options = { input: 'camera' | 'demo'; variant?:PlayVariant; best?:number; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence,challenge?:ChallengeResult) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
+type Options = { catalog?: typeof legacyIngredients; schedule?: Pair[]; showPreview?: boolean; autoPrepare?: boolean; localResult?: boolean; input: 'camera' | 'demo'; variant?:PlayVariant; best?:number; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence,challenge?:ChallengeResult) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
 export function mountGame(container: HTMLElement, options: Options) {
+  const ingredients = options.catalog ?? legacyIngredients;
   const mode = options.input;
   const challenge=options.variant==='challenge';
   let activeSeconds=0,spawnAtMs=0,countdown=challenge?3:0;
@@ -25,14 +26,14 @@ export function mountGame(container: HTMLElement, options: Options) {
   let assetsReady = mode === 'demo';
   const avatar = mode === 'camera' ? new AvatarRenderer() : null;
   let lastTracking: Tracking | null = null;
-  let evidence = freshEvidence();
+  let evidence = options.catalog ? Object.fromEntries(ingredients.map(food => [food.id, {offered:0,caught:0}])) as Evidence : freshEvidence();
   let basketX = .5, targetX = .5, lastFrame = 0, animation = 0;
   // Feel knobs: fall speed (field heights per second), pause between pairs, and plate celebration length.
   let fallSpeed = challenge ? .34 : .22;
   const pairGap = challenge ? .18 : .5, celebration = challenge ? .45 : 1.5;
   const foods = ingredients.filter(i => options.allowed.includes(i.id)).map(i => i.id);
   const pairLimit=challenge?challengeMaxPairs:maxPairs;
-  const schedule = pairSchedule(foods, pairLimit);
+  const schedule = options.schedule ?? pairSchedule(foods, pairLimit);
   const emojiOf = (id: IngredientId) => ingredients.find(i => i.id === id)!.emoji;
   // One pair is on screen at a time. The unpicked one floats away ('leaving'); nothing is ever marked wrong.
   let items: {id:IngredientId;x:number;y:number;rotation:number;leaving:boolean;life:number}[] = [];
@@ -55,6 +56,8 @@ export function mountGame(container: HTMLElement, options: Options) {
     $('.game-help')!.textContent=mode==='camera'?'好きなほうへ手をのばそう。カメラが見失った間は、時間も止まります。':'指・マウス・← → キーで移動。見送っても減点なし。';
   }
   const video = $<HTMLVideoElement>('#camera')!;
+  const preview = options.showPreview && mode === 'camera' ? document.createElement('video') : null;
+  if (preview) { preview.autoplay = true; preview.muted = true; preview.playsInline = true; preview.className = 'game-live-preview'; preview.setAttribute('aria-label', 'ゲーム中のカメラプレビュー'); const wrap = document.createElement('div'); wrap.className = 'game-preview-wrap'; const label = document.createElement('span'); label.textContent = 'カメラの写り'; wrap.append(preview, label); field.after(wrap); }
   const camera = (options.cameraFactory ?? (callback => new PoseCamera(callback)))(tracking => {
     if (disposed) return;
     if (lastTracking) sampleGap = tracking.capturedAt - lastTracking.capturedAt;
@@ -81,7 +84,7 @@ export function mountGame(container: HTMLElement, options: Options) {
     }
     cameraState='loading';updateTracking();
     const prepare=$<HTMLButtonElement>('[data-game="prepare-camera"]');if(prepare)prepare.disabled=true;
-    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;cameraState='ready'; field.classList.add('camera-prepared'); showGestureControls('start'); updateTracking(); }
+    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;if(preview){preview.srcObject=video.srcObject;void preview.play().catch(()=>{});}cameraState='ready'; field.classList.add('camera-prepared'); showGestureControls('start'); updateTracking(); }
     catch(error){if(disposed)return;camera.stop();cameraState='error'; const name=error instanceof Error?error.name:'';cameraMessage=name==='NotAllowedError'?'カメラが許可されていません。大人の人に確認してね。':name==='NotFoundError'?'カメラが見つかりません。大人の人に確認してね。':!isSecureContext?'カメラには信頼済みのHTTPSが必要です。大人の人に確認してね。':'カメラを使えません。大人の人に確認してね。'; if(prepare){prepare.disabled=false;prepare.textContent='もう一度 じゅんびする';}updateTracking();}
   }
   function showGestureControls(action: 'start' | 'resume', message = '') {
@@ -149,10 +152,10 @@ export function mountGame(container: HTMLElement, options: Options) {
     card.querySelector('p')!.textContent=message;overlay.appendChild(card);field.appendChild(overlay);refreshActions();
   }
   async function submitResult(){
-    const message=$('#result-message');if(message)message.textContent='結果を大人に送っています…';
+    const message=$('#result-message');if(message)message.textContent=options.localResult?'結果を表示しています…':'結果を大人に送っています…';
     try{await options.onFinish(evidence,result);}catch{if(disposed)return;if(message)message.textContent='送れませんでした。つながったら、もう一度送ってね。';const retry=$('[data-game="retry-result"]');if(retry)retry.hidden=false;}
   }
-  function finish(completed=false){if(phase==='finished'||disposed)return;phase='finished';if(challenge)result={activeMs:completed?challengeSeconds*1000:Math.min(challengeSeconds*1000,Math.round(activeSeconds*1000)),completed,catches:[...catches]};camera.stop();video.srcObject=null;void audio?.close().catch(()=>{});audio=null;avatar?.destroy();cancelAnimationFrame(animation);const served=plates.filter(plate=>plate.length);container.innerHTML='<div class="child-center"><h1>おしまい！</h1>'+(served.length?`<div class="result-plates"><span>きょうの おさら</span>${platesHtml(served)}</div>`:'')+'<p id="result-message">結果を大人に送っています…</p><button class="button primary" data-game="retry-result" hidden>もう一度 送る</button></div>';void submitResult();}
+  function finish(completed=false){if(phase==='finished'||disposed)return;phase='finished';if(challenge)result={activeMs:completed?challengeSeconds*1000:Math.min(challengeSeconds*1000,Math.round(activeSeconds*1000)),completed,catches:[...catches]};camera.stop();video.srcObject=null;if(preview)preview.srcObject=null;void audio?.close().catch(()=>{});audio=null;avatar?.destroy();cancelAnimationFrame(animation);const served=plates.filter(plate=>plate.length);container.innerHTML='<div class="child-center"><h1>おしまい！</h1>'+(served.length?`<div class="result-plates"><span>きょうの おさら</span>${platesHtml(served)}</div>`:'')+'<p id="result-message">結果を大人に送っています…</p><button class="button primary" data-game="retry-result" hidden>もう一度 送る</button></div>';void submitResult();}
 function tick(now: number) {
   if (disposed || phase === 'finished' || !canvas || !field) return;
   const dt = lastFrame ? Math.min((now - lastFrame) / 1000, .07) : 0; lastFrame = now;
@@ -272,6 +275,13 @@ function draw() {
     ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, item.life)); ctx.translate(item.x * w, item.y * h); ctx.rotate(item.rotation);
     ctx.fillStyle = '#fff9'; ctx.beginPath(); ctx.arc(0, 0, mode === 'camera' ? layout.foodRadius : Math.min(w * .05, 44), 0, Math.PI*2); ctx.fill();
     ctx.font = emojiFont(mode === 'camera' ? layout.foodRadius * 1.5 : Math.min(w * .078, 66)); ctx.fillText(emojiOf(item.id), 0, 0); ctx.restore();
+    if(options.catalog){
+      ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,item.life)); ctx.font='bold 12px sans-serif';
+      const name=ingredients.find(food=>food.id===item.id)!.name, width=ctx.measureText(name).width+16;
+      const x=item.x*w, y=item.y*h+(mode==='camera'?layout.foodRadius:Math.min(w*.05,44))+11;
+      ctx.fillStyle='#fffdf3ee';ctx.beginPath();ctx.roundRect(x-width/2,y-10,width,21,9);ctx.fill();
+      ctx.fillStyle='#46603f';ctx.fillText(name,x,y);ctx.restore();
+    }
   }
   if (mode === 'demo') {
   // The basket opening crosses the fixed catch line at y=.82.
@@ -347,5 +357,6 @@ function draw() {
   function visibility(){if(document.hidden)pause('画面を離れたので、時間を止めたよ。');}
   container.addEventListener('click',click);container.addEventListener('pointermove',pointer);container.addEventListener('pointerdown',pointer);window.addEventListener('keydown',key);document.addEventListener('visibilitychange',visibility);
   renderPlates();animation=requestAnimationFrame(tick);
-  return {pause,syncStatus(){if(phase==='playing'||phase==='paused')void options.onStatus(phase).catch(()=>{});},destroy(){disposed=true;window.removeEventListener('resize',resize);void audio?.close().catch(()=>{});camera.stop();video.srcObject=null;avatar?.destroy();cancelAnimationFrame(animation);container.removeEventListener('click',click);container.removeEventListener('pointermove',pointer);container.removeEventListener('pointerdown',pointer);window.removeEventListener('keydown',key);document.removeEventListener('visibilitychange',visibility);}};
+  if(options.autoPrepare && mode === 'camera') void prepareCamera();
+  return {pause,syncStatus(){if(phase==='playing'||phase==='paused')void options.onStatus(phase).catch(()=>{});},destroy(){disposed=true;window.removeEventListener('resize',resize);void audio?.close().catch(()=>{});camera.stop();video.srcObject=null;if(preview)preview.srcObject=null;avatar?.destroy();cancelAnimationFrame(animation);container.removeEventListener('click',click);container.removeEventListener('pointermove',pointer);container.removeEventListener('pointerdown',pointer);window.removeEventListener('keydown',key);document.removeEventListener('visibilitychange',visibility);}};
 }

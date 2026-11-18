@@ -25,7 +25,7 @@ const layout=async page=>assert.equal(await page.evaluate(()=>document.documentE
 const login=async page=>{await page.locator('#username').fill(username);await page.locator('#password').fill(password);await page.locator('#auth-form button[type="submit"]').click();};
 await mkdir('test-results',{recursive:true});
 try{
- await Promise.all([adult.goto(base),child.goto(base)]);
+ await Promise.all([adult.goto(`${base}/legacy.html`),child.goto(`${base}/legacy.html`)]);
  await shot(adult,'01-login');await layout(adult);
  assert.equal(await adult.locator('#room-code').count(),0);
  await click(child,'toggle-auth');await login(child);await click(child,'role-child');

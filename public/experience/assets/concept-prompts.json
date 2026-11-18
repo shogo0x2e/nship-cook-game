@@ -1,0 +1,25 @@
+{
+  "mode": "built-in image_gen; generate",
+  "assets": [
+    {
+      "id": "concept-game-recipe",
+      "prompt": "Use case: illustration-story\nAsset type: landscape concept image for a Japanese family cooking product, one of a cohesive set of five.\nScene: a modest everyday home kitchen and dining table. Subject: a child choosing a carrot in a simple food-catching game on a smartphone, a parent beside them, and a small bowl of ordinary home-cooked rice with vegetables on the table; show a clear visual connection between the vegetable in the game and the meal. Style: warm tactile paper-cut and soft watercolor illustration, cream background, muted sage and terracotta, restrained and friendly, simple uncluttered composition, natural proportions. Landscape 3:2 composition with generous breathing room. No writing, numbers, logos, watermarks, stars, confetti, luxury food styling, celebrity likeness. This is a future-product concept, not a screenshot. Keep phone interface abstract and icon-only."
+    },
+    {
+      "id": "concept-food-learning",
+      "prompt": "Use case: illustration-story\nAsset type: landscape concept image for a Japanese family cooking product, cohesive with warm cream, muted sage and terracotta paper-cut watercolor illustrations.\nScene: a home table. Subject: a curious child looking at a smartphone food-learning game, with a real-world tomato cut in half showing its seeds and a small whole carrot nearby; simple matching ingredient cards on the phone connect food knowledge to everyday ingredients. Show learning through observation, no text or nutrition claims. Calm, uncluttered tactile illustration, natural hands and proportions, welcoming ordinary home, landscape 3:2. No writing, numbers, logos, watermarks, fantasy powers, sparkles, confetti, elaborate dishes."
+    },
+    {
+      "id": "concept-challenge-feedback",
+      "prompt": "Use case: illustration-story\nAsset type: landscape concept image for a Japanese family cooking product, same cohesive cream, muted sage and terracotta tactile paper-cut watercolor style.\nSubject: a child selecting a green bell pepper in a smartphone food game, with a small gentle celebratory ring around the pepper icon, while a parent receives a simple icon-only feedback card showing the same pepper on another phone. Show a game choice being noticed by the parent. The child is not eating; do not imply actual tasting or automatic food-intake detection. Everyday cozy home table, clear uncluttered visual narrative, natural proportions, landscape 3:2. No readable text, logos, numbers, celebrity likeness, exaggerated sparkles or confetti."
+    },
+    {
+      "id": "concept-expert-recipes",
+      "prompt": "Use case: illustration-story\nAsset type: landscape concept image for a Japanese family cooking product, cohesive cream, muted sage and terracotta tactile paper-cut watercolor style.\nScene: a friendly practical recipe-development kitchen. Subject: two generic non-famous food professionals, one cook in a plain apron and one nutrition professional in everyday clothes, collaborating over recipe cards with simple pictures and an ordinary plate of simmered potatoes, carrots and meat. Include a modest smartphone displaying a food photo with blank graphic lines, suggesting recipes reaching families. Supportive teamwork, no portrait resemblance or endorsements. Landscape 3:2, uncluttered and warm. No readable text, logos, medals, lab coats, fancy restaurant presentation or decorative star-shaped vegetables."
+    },
+    {
+      "id": "concept-family-schedule",
+      "prompt": "Use case: illustration-story\nAsset type: landscape concept image for a Japanese family cooking product, cohesive warm cream, muted sage and terracotta tactile paper-cut watercolor style.\nScene: an ordinary family dining table. Subject: two parents and a school-aged child looking together at a simple weekly calendar with colored blocks and small clock/utensil icons, with a smartphone showing an icon-only meal plan and a modest pot of everyday curry nearby. Suggest choosing a meal and sharing manageable tasks around family schedules. Both parents are equally involved. Clear calm composition, natural proportions, landscape 3:2. No readable text, dates, logos, watermarks, excessive details or decorative food styling."
+    }
+  ]
+}

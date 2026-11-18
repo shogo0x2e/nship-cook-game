@@ -5,8 +5,10 @@ FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY index.html poc.html tsconfig.json vite.config.ts ./
+COPY index.html legacy.html poc.html tsconfig.json vite.config.ts ./
 COPY public/avatar ./public/avatar
+COPY public/experience ./public/experience
+COPY design/recipe-prototype ./design/recipe-prototype
 COPY src ./src
 COPY server ./server
 COPY tests ./tests
@@ -25,7 +27,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 # The server imports TypeScript shared/content/game modules at runtime.
 COPY --from=build --chown=node:node /app/server ./server
 COPY --from=build --chown=node:node /app/src ./src
-COPY --chown=node:node scripts/reset-password.mjs ./scripts/reset-password.mjs
+COPY --chown=node:node scripts/reset-password.mjs scripts/export-surveys.mjs ./scripts/
 USER node
 EXPOSE 8787
 CMD ["node", "server/server.ts"]

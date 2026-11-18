@@ -1,0 +1,206 @@
+[
+  {
+    "id": "curry",
+    "source": "https://housefoods.jp/recipe/rcp_00027252.html",
+    "photoUrl": "https://housefoods.jp/_sys/catimages/recipe/hfrecipe/items/00027252/0.jpeg",
+    "originalDimensions": [
+      1518,
+      1012
+    ],
+    "photoSha256": "ec743f8fd8947831fc3f4044464ff3ef0d4851ad782016d746aa1b976fcb52c1",
+    "localFile": "/experience/assets/curry.webp",
+    "facts": {
+      "name": "バーモントカレー",
+      "recipeYield": "6皿分",
+      "totalTime": "PT40M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "nikujaga",
+    "source": "https://www.kikkoman.co.jp/homecook/washoku/031/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/washoku/031/img/homecook_washoku_031_main.jpg",
+    "originalDimensions": [
+      2880,
+      1106
+    ],
+    "photoSha256": "d8e00d4f2c2d9d1d4834db22c3917c46a284165d496b73d8942d097d3abfec4e",
+    "localFile": "/experience/assets/nikujaga.webp",
+    "facts": {
+      "name": null,
+      "recipeYield": null,
+      "totalTime": null,
+      "cookTime": null
+    }
+  },
+  {
+    "id": "hamburger",
+    "source": "https://www.kikkoman.co.jp/homecook/search/recipe/00004695/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/assets/img/00004695.jpg",
+    "originalDimensions": [
+      348,
+      232
+    ],
+    "photoSha256": "4070f25d6330b6566474250b12de6ef414d54e20334221d61a5d156dc801abd1",
+    "localFile": "/experience/assets/hamburger.webp",
+    "facts": {
+      "name": "人気の本格ハンバーグ【ソースも手づくりで簡単】",
+      "recipeYield": "2人分",
+      "totalTime": "PT20M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "oyakodon",
+    "source": "https://www.kikkoman.co.jp/homecook/search/recipe/00004703/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/assets/img/00004703.jpg",
+    "originalDimensions": [
+      348,
+      232
+    ],
+    "photoSha256": "3fecf589f1d86042454973f69502d4ba6ebd6127ad38912f982f87aa1a740833",
+    "localFile": "/experience/assets/oyakodon.webp",
+    "facts": {
+      "name": "親子丼【しょうゆとみりんと砂糖で人気の定番味】",
+      "recipeYield": "2人分",
+      "totalTime": "PT10M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "fried-rice",
+    "source": "https://www.kikkoman.co.jp/homecook/search/recipe/00005454/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/assets/img/00005454.jpg",
+    "originalDimensions": [
+      348,
+      232
+    ],
+    "photoSha256": "7338f415b6fc81d5c95b2b84b6dfc42bc7a6ac6f1e574e8523a12690b05662b8",
+    "localFile": "/experience/assets/fried-rice.webp",
+    "facts": {
+      "name": "卵とねぎのシンプルチャーハン（小田真規子先生）",
+      "recipeYield": "2人分",
+      "totalTime": "PT10M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "yakisoba",
+    "source": "https://www.kikkoman.co.jp/homecook/search/recipe/00050997/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/assets/img/00050997.jpg",
+    "originalDimensions": [
+      348,
+      232
+    ],
+    "photoSha256": "6dd8048907dfa9d41374e69d0975ec9e3cf884659b0e6fbdd1b0dfd5044f8848",
+    "localFile": "/experience/assets/yakisoba.webp",
+    "facts": {
+      "name": "絶品ソース焼きそば",
+      "recipeYield": "2人分",
+      "totalTime": "PT15M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "yakiudon",
+    "source": "https://www.kikkoman.co.jp/homecook/search/recipe/00006099/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/search/recipe/img/00006099.jpg",
+    "originalDimensions": [
+      348,
+      232
+    ],
+    "photoSha256": "432d635b06ce8d923414fc3f9e0ea7a1d38acde011cf41b0903557c45d307599",
+    "localFile": "/experience/assets/yakiudon.webp",
+    "facts": {
+      "name": "濃いだし焼きうどん 【本つゆ（めんつゆ）使用】",
+      "recipeYield": "2人分",
+      "totalTime": "PT10M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "salmon-foil",
+    "source": "https://www.kikkoman.co.jp/homecook/search/recipe/00055959/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/assets/img/00055959.jpg",
+    "originalDimensions": [
+      348,
+      232
+    ],
+    "photoSha256": "362ad738a54bfcbc959f39ca0f2cad148239a5209b874b8bd5be645bbcc5b736",
+    "localFile": "/experience/assets/salmon-foil.webp",
+    "facts": {
+      "name": "子どもがよろこぶ 鮭のホイル焼き【簡単ごちそう】",
+      "recipeYield": "2人分",
+      "totalTime": "PT20M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "salmon-cabbage",
+    "source": "https://www.marukome.co.jp/recipe/detail/ekimiso_243/",
+    "photoUrl": "http://www.marukome.co.jp/files/recipe/2995/626b742f-eea4-438a-88a7-4a210a0001f7.png",
+    "originalDimensions": [
+      960,
+      640
+    ],
+    "photoSha256": "80e59ecf05a577241326a82a6955eb56a80895eefe3d9e9651a36dcd82188eb2",
+    "localFile": "/experience/assets/salmon-cabbage.webp",
+    "facts": {
+      "name": "鮭のちゃんちゃん焼き",
+      "recipeYield": "4人分",
+      "totalTime": null,
+      "cookTime": "PT15M"
+    }
+  },
+  {
+    "id": "egg-sandwich",
+    "source": "https://www.kewpie.co.jp/recipes/recipe/QP00013780/",
+    "photoUrl": "https://img.kewpie.co.jp/recipes_src/recipe/img/large/QP00013780_1L.jpg",
+    "originalDimensions": [
+      1000,
+      752
+    ],
+    "photoSha256": "cc673169df5fd6f205d1154512a42e9dedd3bbdefd133f62580a2b3e4d21d40b",
+    "localFile": "/experience/assets/egg-sandwich.webp",
+    "facts": {
+      "name": "たまごサンドイッチ",
+      "recipeYield": "2人分",
+      "totalTime": "PT5M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "chicken-tomato",
+    "source": "https://www.kikkoman.co.jp/homecook/search/recipe/00007359/",
+    "photoUrl": "https://www.kikkoman.co.jp/homecook/assets/img/00007359.jpg",
+    "originalDimensions": [
+      348,
+      232
+    ],
+    "photoSha256": "772fe878eba90e5705c8a18d57e0c66cdf8d8b2d3a4b9647b53b8c360e7b8f16",
+    "localFile": "/experience/assets/chicken-tomato.webp",
+    "facts": {
+      "name": "鶏肉のトマト煮【カットトマトで簡単】",
+      "recipeYield": "2人分",
+      "totalTime": "PT30M",
+      "cookTime": null
+    }
+  },
+  {
+    "id": "pizza-toast",
+    "source": "https://www.orangepage.net/recipes/122591",
+    "photoUrl": "https://recipe-assets.orangepage.net/uploads/recipes/image/0000122591/20240403043537.jpg",
+    "originalDimensions": [
+      300,
+      415
+    ],
+    "photoSha256": "b027b44ccf59c2c5fea57a77dd91907c7ab4d10fbf30a2d5921ded200ee30059",
+    "localFile": "/experience/assets/pizza-toast.webp",
+    "facts": {
+      "name": "フレッシュトマトのピザトースト",
+      "recipeYield": "2人分",
+      "totalTime": null,
+      "cookTime": null
+    }
+  }
+]

@@ -15,7 +15,7 @@ const snapshot=async()=>{const r=await page.request.get(`${base}/api/family`);as
 await mkdir('test-results/challenge',{recursive:true});
 try{
   const registered=await page.request.post(`${base}/api/auth/register`,{headers:{Origin:base},data:{username:`trial_${Date.now()}`,password:'poc4'}});assert.equal(registered.status(),201);
-  await page.goto(base);await click('role-child');
+  await page.goto(`${base}/legacy.html`);await click('role-child');
   await click('variant-challenge');await click('start-demo');
   await page.getByRole('heading',{name:'45秒、好きな食材をキャッチ。'}).waitFor();
   await page.locator('[data-game="start"]').click();
