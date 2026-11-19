@@ -1,13 +1,18 @@
+import { FramingGate } from './camera-framing';
+// @ts-expect-error Shared HTML view helpers are intentionally plain JavaScript.
+import { cameraGuide, framingFeedbackHTML, bindFramingFeedback } from '../design/recipe-prototype/camera-panel.js';
 import { basketWidth, caughtAtBasket, freshEvidence, ingredients as legacyIngredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Pair, type Evidence } from './game';
 import { PoseCamera, type Tracking, type CameraSource } from './pose';
 import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, trackingTimeout, type DrawArm, type Geometry } from './avatar';
 import { AvatarRenderer } from './avatar-renderer';
 import { challengeSeconds, challengeMaxPairs, catchPoints, challengeScore, type ChallengeResult, type CatchMoment, type PlayVariant } from './challenge';
 
-type Options = { catalog?: typeof legacyIngredients; schedule?: Pair[]; showPreview?: boolean; autoPrepare?: boolean; localResult?: boolean; input: 'camera' | 'demo'; variant?:PlayVariant; best?:number; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence,challenge?:ChallengeResult) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
+type Options = { startWhenFramed?:boolean; catalog?: typeof legacyIngredients; schedule?: Pair[]; showPreview?: boolean; autoPrepare?: boolean; localResult?: boolean; input: 'camera' | 'demo'; variant?:PlayVariant; best?:number; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence,challenge?:ChallengeResult) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
 export function mountGame(container: HTMLElement, options: Options) {
   const ingredients = options.catalog ?? legacyIngredients;
   const mode = options.input;
+  let framingPending=Boolean(options.startWhenFramed&&mode==='camera');
+  const framing=framingPending?new FramingGate():null;
   const challenge=options.variant==='challenge';
   let activeSeconds=0,spawnAtMs=0,countdown=challenge?3:0;
   const catches:CatchMoment[]=[];
@@ -45,6 +50,15 @@ export function mountGame(container: HTMLElement, options: Options) {
   container.innerHTML = `<div class="game-heading"><span class="pill">${mode === 'camera' ? 'すきなほうへ、てをのばそう！' : 'カメラなし・おためし'}</span><span class="game-counter" id="counter">おさら <b>1</b> / ${plateCount}</span></div><section class="field ${mode === 'camera' ? 'camera-field' : ''}" id="field" aria-label="${mode === 'camera' ? '座ったまま手を伸ばして、ふたつのうち ひとつを えらぶ' : '左右にかごを動かして、ふたつのうち ひとつを えらぶ'}"><video id="camera" autoplay muted playsinline class="camera-video avatar-source" ${mode === 'demo' ? 'hidden':''}></video><div class="field-tint"></div><canvas id="game-canvas" tabindex="0" role="img" aria-label="食材キャッチの遊び場"></canvas><div id="tracking-note" class="tracking-note" role="status"></div><div class="game-overlay setup-overlay"><div class="overlay-card"><span class="overlay-icon">${mode === 'camera' ? '🌱' : '🧺'}</span><h2>${mode==='camera'?'すわって、てをのばそう。':'かごを、左右へ。'}</h2><p>${mode==='camera'?'顔と両ひじ・両手が うつるようにしてね。<br>肩より上に手をのばして、すきな食材にタッチ。<br>どっちでも、とらなくても、だいじょうぶ。':'ふたつ おちてくるよ。すきなほうを ひとつ。<br>どっちでも、とらなくても、だいじょうぶ。'}</p><p class="camera-status" id="camera-status" role="status">${mode==='camera'?'映像はこのタブレットの中だけで使います。':'映像は使いません。'}</p>${mode==='camera'?'<button class="button primary" data-game="prepare-camera">カメラを じゅんびする</button>':''}<button class="button primary" id="start-button" data-game="start" ${mode==='camera'?'disabled':''}>はじめる →</button></div></div></section><div class="game-bottom"><div class="caught-strip"><span>きょうの おさら</span><div class="plates" id="plates"></div></div><div class="game-actions"></div></div><p class="game-help">${mode==='camera'?'すわったまま、肩より上に手をのばしてね。手の輪がタッチの目印だよ。':'指・マウスを左右へ / ← → キーでも動かせます。おさらに 3つ のせよう。'}</p>${mode === 'camera' ? '<details class="tracking-debug"><summary>大人向け：カメラと検出の確認</summary><div class="debug-content"><canvas id="pose-debug" width="320" height="240" aria-label="端末内のカメラと肩・肘・手首の検出"></canvas><div><p id="pose-metrics"></p><p>緑の点：検出できています。点が途切れたら、顔と両ひじ・両手が入るようにカメラを調整してください。立ったり歩いたりする必要はありません。</p><p>この映像・点・顔画像は端末内だけで使い、送信・保存しません。</p></div></div></details>' : ''}`;
   const canvas = $<HTMLCanvasElement>('#game-canvas')!;
   const field = $('#field')!;
+  let updateFraming:((result:ReturnType<FramingGate['sample']>)=>void)|undefined;
+  if(framingPending){
+    container.classList.add('is-framing');field.classList.add('framing-field');
+    $('.setup-overlay')?.remove();
+    const overlay=document.createElement('div');overlay.className='game-overlay framing-overlay';
+    overlay.innerHTML=cameraGuide+'<div class="framing-game-feedback">'+framingFeedbackHTML()+'<button class="button secondary small" data-game="prepare-camera" hidden>もう一度カメラを起動</button></div>';
+    field.append(overlay);updateFraming=bindFramingFeedback(overlay,field);
+    $('.game-heading .pill')!.textContent='カメラの写りを確認しています';
+  }
   if(challenge){
     container.classList.add('challenge-game');field.dataset.variant='challenge';
     $('#counter')!.innerHTML=`あと <b id="challenge-time">${challengeSeconds}</b> 秒`;
@@ -57,11 +71,12 @@ export function mountGame(container: HTMLElement, options: Options) {
   }
   const video = $<HTMLVideoElement>('#camera')!;
   const preview = options.showPreview && mode === 'camera' ? document.createElement('video') : null;
-  if (preview) { preview.autoplay = true; preview.muted = true; preview.playsInline = true; preview.className = 'game-live-preview'; preview.setAttribute('aria-label', 'ゲーム中のカメラプレビュー'); const wrap = document.createElement('div'); wrap.className = 'game-preview-wrap'; const label = document.createElement('span'); label.textContent = 'カメラの写り'; wrap.append(preview, label); field.after(wrap); }
+  if (preview) { preview.autoplay = true; preview.muted = true; preview.playsInline = true; preview.className = 'game-live-preview'; preview.setAttribute('aria-label', 'ゲーム中のカメラプレビュー'); const wrap = document.createElement('div'); wrap.className = 'game-preview-wrap'; wrap.append(preview); field.classList.add('has-camera-preview'); field.append(wrap); }
   const camera = (options.cameraFactory ?? (callback => new PoseCamera(callback)))(tracking => {
     if (disposed) return;
+    framing?.observe(tracking.points,tracking.capturedAt,performance.now());
     if (lastTracking) sampleGap = tracking.capturedAt - lastTracking.capturedAt;
-    lastTracking = tracking; lastPose = tracking.capturedAt;
+    lastTracking = tracking; lastPose = performance.now();
     targetArms = poseArms(tracking.points, tracking.width, tracking.height);
     avatar?.updateFace(tracking.points, video, performance.now());
     updateTracking();
@@ -71,6 +86,10 @@ export function mountGame(container: HTMLElement, options: Options) {
   });
   const isTracked = () => targetArms.every(arm => arm.valid) && performance.now() - lastPose < trackingTimeout;
   function updateTracking() {
+    if(framingPending&&(cameraState==='loading'||cameraState==='error')){
+      const text=cameraState==='error'?cameraMessage:'カメラと姿勢の検出を準備しています…';
+      const message=$('.framing-message');if(message&&message.textContent!==text)message.textContent=text;
+    }
     const valid = isTracked();
     const status = $('#camera-status');
     const message = cameraState === 'error' ? cameraMessage : cameraState === 'loading' ? 'カメラと姿勢モデルを準備中…' : !assetsReady ? '絵を準備中…' : cameraState === 'ready' && valid ? '手をかさねて、輪がいっぱいになるまで まってね。' : cameraState === 'ready' ? '顔と両ひじ・両手を、うつしてね。' : '';
@@ -84,8 +103,8 @@ export function mountGame(container: HTMLElement, options: Options) {
     }
     cameraState='loading';updateTracking();
     const prepare=$<HTMLButtonElement>('[data-game="prepare-camera"]');if(prepare)prepare.disabled=true;
-    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;if(preview){preview.srcObject=video.srcObject;void preview.play().catch(()=>{});}cameraState='ready'; field.classList.add('camera-prepared'); showGestureControls('start'); updateTracking(); }
-    catch(error){if(disposed)return;camera.stop();cameraState='error'; const name=error instanceof Error?error.name:'';cameraMessage=name==='NotAllowedError'?'カメラが許可されていません。大人の人に確認してね。':name==='NotFoundError'?'カメラが見つかりません。大人の人に確認してね。':!isSecureContext?'カメラには信頼済みのHTTPSが必要です。大人の人に確認してね。':'カメラを使えません。大人の人に確認してね。'; if(prepare){prepare.disabled=false;prepare.textContent='もう一度 じゅんびする';}updateTracking();}
+    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;if(preview){preview.srcObject=video.srcObject;void preview.play().catch(()=>{});}cameraState='ready'; field.classList.add('camera-prepared'); if(!framingPending)showGestureControls('start'); updateTracking(); }
+    catch(error){if(disposed)return;camera.stop();cameraState='error'; const name=error instanceof Error?error.name:'';cameraMessage=name==='NotAllowedError'?'カメラが許可されていません。大人の人に確認してね。':name==='NotFoundError'?'カメラが見つかりません。大人の人に確認してね。':!isSecureContext?'カメラには信頼済みのHTTPSが必要です。大人の人に確認してね。':'カメラを使えません。大人の人に確認してね。'; if(prepare){prepare.hidden=false;prepare.disabled=false;prepare.textContent='もう一度 じゅんびする';}updateTracking();}
   }
   function showGestureControls(action: 'start' | 'resume', message = '') {
     container.querySelector('.game-overlay')?.remove();
@@ -107,13 +126,14 @@ export function mountGame(container: HTMLElement, options: Options) {
   function beginPlaying() {
     if (disposed || !['setup', 'paused'].includes(phase) || !options.canPlay()) return;
     if (mode === 'camera' && (cameraState !== 'ready' || !assetsReady || !isTracked())) return;
+    if(framingPending){framingPending=false;container.classList.remove('is-framing');field.classList.remove('framing-field');$('.game-heading .pill')!.textContent='すきなほうへ、てをのばそう！';}
     startAudio(); phase = 'playing'; gestureHold.reset(); gestureProgress = 0; gestureTarget = null;
     previousHands = []; wasTracked = false;
     container.querySelector('.game-overlay')?.remove(); refreshActions(); canvas.focus({preventScroll:true});
     void options.onStatus('playing').catch(() => pause('つながりを確認してから、つづけてね。'));
   }
   function updateGesture(hands: DrawArm[], layout: Geometry, dt: number, tracked: boolean) {
-    if (mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
+    if (framingPending || mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
     if (!tracked || !options.canPlay()) {
       gestureHold.reset(phase === 'paused'); gestureProgress = 0; gestureTarget = null;
       field.dataset.gestureProgress = '0'; return;
@@ -127,7 +147,7 @@ export function mountGame(container: HTMLElement, options: Options) {
     if (gestureProgress >= 1) beginPlaying();
   }
   function drawGestureButtons(ctx: CanvasRenderingContext2D, layout: Geometry) {
-    if (mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
+    if (framingPending || mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
     const ready = assetsReady && isTracked() && options.canPlay();
     const label = phase === 'setup' ? 'はじめる' : 'つづける';
     const targets = gestureTargets(layout);
@@ -165,6 +185,7 @@ function tick(now: number) {
     updateTracking();
     displayedArms = targetArms.map((arm, i) => arm.valid && now-lastPose < trackingTimeout ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: false, raised: false }) as typeof targetArms;
   }
+  if(framingPending&&cameraState==='ready'&&assetsReady&&framing){const result=framing.sample(now,!document.hidden);updateFraming?.(result);if(result.ready)beginPlaying();}
   const hands = displayedArms.map((arm, i) => placeArm({ ...arm, valid: tracked && arm.valid }, i, layout));
   const note = $('#tracking-note');
   if (note) note.textContent = mode === 'camera' && !tracked && phase === 'playing' ? '両ひじと両手をうつしてね。時間は止まっているよ。' : '';

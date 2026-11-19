@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import {mkdir,writeFile} from 'node:fs/promises';
+import {chromium} from 'playwright';
+import {createSessionServer} from '../server/server.ts';
+
+const app=await createSessionServer({port:0});await app.listen();
+const base=`http://127.0.0.1:${app.server.address().port}`;
+const browser=await chromium.launch({channel:process.env.E2E_BROWSER??'chrome',headless:true});
+const errors=[],external=[],checks=[];
+const check=name=>{checks.push(name);console.log(`PASS ${name}`);};
+await mkdir('test-results/camera-framing',{recursive:true});
+async function openTrial(viewport){
+ const page=await browser.newPage({viewport});
+ page.on('pageerror',error=>errors.push(error.message));
+ page.on('request',request=>{if(!request.url().startsWith(base+'/')&&!request.url().startsWith('blob:'))external.push(request.url());});
+ await page.goto(`${base}/?demo=1`);
+ await page.locator('[name="age"]').fill('5');
+ await page.locator('#participant-form button').click();
+ assert.equal(await page.locator('main button').count(),1);
+ await page.getByRole('button',{name:'カメラを起動して、 ゲームを始める',exact:true}).waitFor();
+ return page;
+}
+try{
+ const denied=await openTrial({width:390,height:844});
+ await denied.evaluate(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Synthetic denial','NotAllowedError');};});
+ await denied.locator('[data-action="start-camera-game"]').click();
+ await denied.getByText('カメラが許可されていません。大人の人に確認してね。',{exact:true}).waitFor({timeout:30000});
+ assert.equal(await denied.locator('#field').getAttribute('data-phase'),'setup');
+ await denied.locator('[data-game="prepare-camera"]').waitFor({state:'visible'});
+ await denied.locator('[data-action="demo-game"]').click();
+ await denied.locator('[data-game="start"]').click();
+ await denied.locator('[data-game="finish"]').click();
+ await denied.waitForFunction(()=>document.querySelector('main')?.dataset.screen==='result');
+ check('one-button entry, recoverable camera denial and camera-free fallback in the public experience');
+ await denied.close();
+
+ for(const [name,viewport] of Object.entries({phone:{width:360,height:800},tablet:{width:820,height:1180},desktop:{width:1440,height:1000}})){
+  const page=await openTrial(viewport);
+  // Supply synthetic frames only in this test; use the public view and its real finish callback.
+  await page.evaluate(async()=>{
+   const {mountCameraTrial}=await import('/camera-runtime.js');
+   const original=window.cookgameRuntime.mountGame;
+   window.cookgameRuntime.mountGame=(container,options)=>options.input==='camera'?mountCameraTrial(container,options.onFinish,true):original(container,options);
+  });
+  await page.locator('[data-action="start-camera-game"]').click();
+  await page.locator('.framing-overlay').waitFor();
+  assert.equal(await page.locator('.game-preview-wrap').isVisible(),false);
+  assert.equal(await page.locator('#camera').evaluate(video=>getComputedStyle(video).opacity),'1');
+  await page.screenshot({path:`test-results/camera-framing/${name}-before.png`,fullPage:true});
+  await page.waitForFunction(()=>document.querySelector('#field')?.dataset.phase==='playing');
+  assert.equal(await page.locator('.framing-overlay').count(),0);
+  const position=await page.evaluate(()=>{
+   const field=document.querySelector('#field').getBoundingClientRect();
+   const wrap=document.querySelector('.game-preview-wrap'),preview=wrap.getBoundingClientRect();
+   const video=wrap.querySelector('video');
+   return {right:field.right-preview.right,bottom:field.bottom-preview.bottom,width:preview.width,visible:getComputedStyle(wrap).display!=='none',sameStream:video.srcObject===document.querySelector('#camera').srcObject,fit:getComputedStyle(video).objectFit,overflow:document.documentElement.scrollWidth>innerWidth+1};
+  });
+  assert.equal(position.visible,true);assert.equal(position.sameStream,true);assert.equal(position.fit,'contain');assert.equal(position.overflow,false);
+  assert.ok(position.right>=0&&position.right<=13);assert.ok(position.bottom>=0&&position.bottom<=13);assert.ok(position.width>=100&&position.width<=180);
+  await page.screenshot({path:`test-results/camera-framing/${name}-playing.png`,fullPage:true});
+  const stream=await page.locator('#camera').evaluateHandle(video=>video.srcObject);
+  await page.locator('[data-game="finish"]').click();
+  await page.waitForFunction(()=>document.querySelector('main')?.dataset.screen==='result');
+  assert.equal(await stream.evaluate(value=>value.getTracks().every(track=>track.readyState==='ended')),true);
+  check(`${name}: large preview, hands-free auto-start, complete-image preview inside lower right, result and camera cleanup`);
+  await page.close();
+ }
+ assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+ await writeFile('test-results/camera-framing/report.json',JSON.stringify({checks,realCamera:false,syntheticPose:true,runtimeErrors:errors,externalRequests:external},null,2));
+}finally{await browser.close();app.server.closeAllConnections();await new Promise(resolve=>app.server.close(resolve));}

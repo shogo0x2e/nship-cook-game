@@ -17,7 +17,7 @@ window.cookgameRuntime = {
  saveExperience, onSaved, flushOutbox,
  mountGame: (container, options) => mountGame(container, {
   ...options, catalog: experienceIngredients, allowed: [...experienceFoodIds], schedule: rolePairSchedule(groups, maxPairs),
-  canPlay: () => true, onStatus: async () => {}, showPreview: true, autoPrepare: true, localResult: true,
+  canPlay: () => true, onStatus: async () => {}, showPreview: true, autoPrepare: true, startWhenFramed: true, localResult: true,
  }),
 };
 // Shared rendering keeps the review prototype and the shipped experience in sync.

@@ -1,3 +1,4 @@
+@import './game-camera.css';
 :root {
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
   color:#2c3930;
@@ -1398,3 +1399,41 @@ html[data-mode=production] .young-score-label,html[data-mode=production] .choice
  html[data-mode=production] .survey-matrix tbody th{font-size:14px;}
 }
 @media(max-width:360px){html[data-mode=production] main{padding-left:16px;padding-right:16px;}html[data-mode=production] .young-score-label,html[data-mode=production] .choice-anchor{font-size:8px;}}
+/* A connected upper-body outline and automatic framing feedback. */
+.camera-auto-frame{aspect-ratio:4/3;min-height:0;}
+.camera-auto-frame .framing-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform:scaleX(-1);}
+.camera-auto-frame .body-guide{inset:6% 4% 10%;width:92%;height:84%;border:0;border-radius:0;color:#fffef7;filter:drop-shadow(0 1px 1.5px #30462c77);}
+.camera-auto-frame .guide-outline{opacity:.92;}
+.camera-auto-frame.has-face .guide-face,.camera-auto-frame.has-elbows .guide-arms,.camera-auto-frame.has-elbows .guide-torso,.camera-auto-frame.has-hands .guide-hands{stroke:#d7f7c5;}
+.framing-hint{position:absolute;bottom:10px;left:10px;right:10px;margin:0;text-align:center;font-size:12px;line-height:1.7;color:#4c6542;background:#fbfff1e8;border-radius:8px;padding:6px 10px;}
+.camera-detection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0 12px;}
+.detection-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 4px;border:1px solid #d9dfd0;border-radius:10px;color:#7b8675;background:#f5f6ef;font-size:14px;}
+.detection-item .detection-icon{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;font-size:22px;line-height:1;}
+.detection-item small{font-size:10px;white-space:nowrap;}
+.detection-item.is-detected{background:#e8f1df;border-color:#91ad7c;color:#365f3c;}
+.detection-item.is-detected .detection-icon{background:#426c49;color:white;font-size:17px;}
+.camera-auto-status{min-height:105px;padding:8px 0 15px;}
+.framing-message{min-height:3.6em;font-size:14px;line-height:1.8;color:#4d6846;}
+.framing-progress{display:block;width:100%;height:7px;margin-top:12px;accent-color:#4d7c4a;border:0;border-radius:8px;overflow:hidden;}
+.framing-progress[hidden]{display:block;visibility:hidden;}
+[data-framing-start][hidden]{display:none;}
+.framing-progress::-webkit-progress-bar{background:#e4eadb;border-radius:8px;}
+.framing-progress::-webkit-progress-value{background:#5b8050;border-radius:8px;}
+@media(max-width:420px){.framing-hint{font-size:10px;bottom:8px;}.camera-detection{gap:7px;}.detection-item{font-size:13px;}.detection-item small{font-size:9px;}}
+.camera-launch{display:grid;place-items:center;min-height:calc(100dvh - 260px);}
+.camera-launch-button{max-width:480px;width:100%;min-height:88px;text-align:left;font-size:18px;line-height:1.8;}
+.native-game.is-framing .game-bottom,.native-game.is-framing .game-preview-wrap,.native-game.is-framing .game-help,.native-game.is-framing .tracking-debug,.native-game.is-framing .game-counter{display:none;}
+.native-game .framing-field .avatar-source{opacity:1;z-index:2;object-fit:contain;}
+.native-game .game-overlay.framing-overlay{display:block;padding:0;background:transparent;backdrop-filter:none;pointer-events:none;}
+.native-game .framing-overlay .body-guide{inset:2% 4% 29%;width:92%;height:69%;border:0;border-radius:0;color:#fffef7;filter:drop-shadow(0 1px 1.5px #30462c77);}
+.native-game .framing-game-feedback{position:absolute;bottom:10px;left:10px;right:10px;padding:10px 12px;background:#fbfff1ee;border-radius:12px;}
+.native-game .framing-game-feedback .camera-detection{margin:0 0 6px;gap:8px;}
+.native-game .framing-game-feedback .detection-item{flex-direction:row;justify-content:center;font-size:12px;gap:6px;padding:5px;border:0;background:none;}
+.native-game .framing-game-feedback .detection-item small{display:none;}
+.native-game .framing-game-feedback .detection-icon{width:22px;height:22px;font-size:16px;}
+.native-game .framing-game-feedback .camera-auto-status{min-height:0;padding:0;}
+.native-game .framing-game-feedback .framing-message{font-size:12px;min-height:3.6em;color:#4d6846;}
+.native-game .framing-game-feedback .framing-progress{margin-top:6px;}
+.native-game .framing-game-feedback button{pointer-events:auto;}
+.native-game .framing-field.has-face .guide-face,.native-game .framing-field.has-elbows .guide-arms,.native-game .framing-field.has-elbows .guide-torso,.native-game .framing-field.has-hands .guide-hands{stroke:#d7f7c5;}
+.native-game .framing-game-feedback button[hidden]{display:none;}

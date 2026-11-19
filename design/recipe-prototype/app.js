@@ -57,14 +57,11 @@ try {
   }
 } catch { /* Session storage is optional in this local prototype. */ }
 let nativeGame = null;
+let gameMountGeneration=0;
 let sending = false;
 let sendError = '';
 let draftTimer;
-let stream = null;
-let cameraGeneration = 0;
-let cameraBusy = false;
-let cameraError = '';
-let cameraChecks = new Set();
+
 let storageNotice = '';
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const button = (label, action, extra = '') => `<button class="primary" data-action="${action}" ${extra}>${label}<span aria-hidden="true">→</span></button>`;
@@ -162,13 +159,6 @@ function updateSurvey(form) {
   save();
   if (production) { clearTimeout(draftTimer); draftTimer = setTimeout(checkpoint, 900); }
 }
-function stopCamera() {
-  cameraGeneration++;
-  stream?.getTracks().forEach(track => track.stop());
-  stream = null;
-  cameraBusy = false;
-  cameraChecks.clear();
-}
 function routeId() { return location.hash.slice(1).split('?')[0]; }
 function go(stage) {
   if (location.hash === `#${stage}`) render();
@@ -198,16 +188,13 @@ function introView() {
 }
 
 function cameraView() {
-  const labels = [['face', '顔'], ['elbows', '両ひじ'], ['hands', '両手']];
-  const cameraSize = stream?.getVideoTracks()[0]?.getSettings() ?? {};
-  const ratio = cameraSize.width && cameraSize.height ? `${cameraSize.width} / ${cameraSize.height}` : '3 / 4';
-  return `${back('intro')}${heading('カメラの準備', 'カメラの写りを<br>確認してください。', '顔・両ひじ・両手が映る位置に端末を設置してください。')}<div class="camera-frame ${stream ? 'has-video' : ''}" data-aspect-ratio="${ratio}"><video id="camera-preview" autoplay muted playsinline aria-label="鏡映しのカメラプレビュー"></video><div class="camera-placeholder"><span aria-hidden="true">◎</span><p>カメラのプレビューを表示します</p></div><div class="body-guide" aria-hidden="true"><div class="guide-head"></div><div class="guide-body"></div><i class="guide-hand left"></i><i class="guide-hand right"></i></div></div><p class="camera-error" role="status">${esc(cameraError)}</p>${!stream ? `${button(cameraBusy ? '準備中…' : 'カメラを起動', 'camera', cameraBusy ? 'disabled' : '')}` : `<div class="camera-checks">${labels.map(([id, label]) => `<label><input type="checkbox" data-camera-check="${id}" ${cameraChecks.has(id) ? 'checked' : ''}><span>${label}が映っている</span></label>`).join('')}</div><p class="plain-note">映像を見てチェックしてください。次の画面では、手の動きで食材をキャッチします。</p>${button('確認してゲームへ進む', 'start-game', cameraChecks.size === 3 ? '' : 'disabled')}`}<button class="text-action" data-action="demo-game">カメラなしで画面を試す</button>`;
+ return `<div class="camera-launch"><h1 class="sr-only">ゲームを始める</h1><button class="primary camera-launch-button" data-action="start-camera-game"><span>カメラを起動して、<br>ゲームを始める</span><span aria-hidden="true">→</span></button></div>`;
 }
 
 function gameView() {
-  if (production) return '<div id="native-game" class="native-game"></div><button class="text-action" data-action="go" data-stage="camera">カメラの確認に戻る</button>';
+  if (production || state.gameInput==='camera') return '<div id="native-game" class="native-game"></div><button class="text-action" data-action="go" data-stage="camera">開始画面に戻る</button><button class="text-action" data-action="demo-game">カメラなしで試す</button>';
   const pair = foodPairs[Math.min(state.caught.length, foodPairs.length - 1)];
-  return `${heading('子ども', 'すきなほうを<br>キャッチしよう。')}<p class="demo-label">画面確認用：食材をタップして進みます</p><div class="simple-game"><div class="game-top"><b>${state.score} <small>点</small></b><span>${state.caught.length} / ${foodPairs.length} キャッチ</span></div><div class="catch-choices">${pair.map(id => foods.find(food => food.id === id)).map(food => `<button data-action="catch" data-food="${food.id}" aria-label="${food.name}をキャッチ"><span>${food.emoji}</span><small>${food.name}</small></button>`).join('')}</div><div class="demo-character" aria-hidden="true"><div class="demo-face">◡</div><img src="/avatar/body.png" alt=""></div></div>${stream ? '<div class="live-strip"><video id="live-preview" autoplay muted playsinline aria-label="ゲーム中のカメラ映像"></video><span>カメラの写りを<br>ここで確認</span></div>' : ''}${chips(state.caught)}<button class="text-action" data-action="go" data-stage="result">ここまでで終わる</button>`;
+  return `${heading('子ども', 'すきなほうを<br>キャッチしよう。')}<p class="demo-label">画面確認用：食材をタップして進みます</p><div class="simple-game"><div class="game-top"><b>${state.score} <small>点</small></b><span>${state.caught.length} / ${foodPairs.length} キャッチ</span></div><div class="catch-choices">${pair.map(id => foods.find(food => food.id === id)).map(food => `<button data-action="catch" data-food="${food.id}" aria-label="${food.name}をキャッチ"><span>${food.emoji}</span><small>${food.name}</small></button>`).join('')}</div><div class="demo-character" aria-hidden="true"><div class="demo-face">◡</div><img src="/avatar/body.png" alt=""></div></div>${chips(state.caught)}<button class="text-action" data-action="go" data-stage="result">ここまでで終わる</button>`;
 }
 
 function resultView() {
@@ -285,9 +272,9 @@ function render() {
   if (production && stage === 'game' && state.gameFinished) stage = 'result';
   if (!production && stage === 'game' && state.caught.length >= foodPairs.length) stage = 'result';
   if (nativeGame) { nativeGame.destroy(); nativeGame = null; }
+  const generation=++gameMountGeneration;
   state.stage = stage;
   if (routeId() !== stage) history.replaceState(null, '', `#${stage}`);
-  if (stage !== 'camera' && (production || stage !== 'game')) stopCamera();
   actor.textContent = stages.find(item => item.id === stage).actor;
   const recipe = recipeNow();
   const views = {
@@ -297,49 +284,25 @@ function render() {
     'child-survey': () => surveyView(false), 'parent-survey': () => surveyView(true), done: doneView,
   };
   app.innerHTML = production && state.finalPacket && !state.receipt ? sendingView() : views[stage]();
-  if (stage === 'game' && production) {
-    nativeGame = runtime.mountGame(app.querySelector('#native-game'), { input: state.gameInput, onFinish: async evidence => {
-      state.gameFinished = true;
-      state.evidence = Object.fromEntries(foods.map(food => [food.id, evidence[food.id]]));
-      state.caught = foods.flatMap(food => Array(evidence[food.id].caught).fill(food.id));
-      state.score = state.caught.length * 100; save(); checkpoint(); go('result');
-    }});
+  if (stage === 'game' && (production || state.gameInput==='camera')) {
+    const onFinish=async evidence=>{
+      if(generation!==gameMountGeneration)return;
+      state.gameFinished=true;state.evidence=Object.fromEntries(foods.map(food=>[food.id,evidence[food.id]]));
+      state.caught=foods.flatMap(food=>Array(evidence[food.id].caught).fill(food.id));state.score=state.caught.length*100;save();checkpoint();go('result');
+    };
+    if(production)nativeGame=runtime.mountGame(app.querySelector('#native-game'),{input:state.gameInput,onFinish});
+    else void (import.meta.env?.DEV?import('/src/camera-runtime.ts'):import(/* @vite-ignore */ '/camera-runtime.js')).then(module=>{
+      if(generation===gameMountGeneration)nativeGame=module.mountCameraTrial(app.querySelector('#native-game'),onFinish);
+    }).catch(()=>{if(generation===gameMountGeneration)app.innerHTML='<p>ゲームを読み込めませんでした。ページを再読み込みしてください。</p>';});
   }
   app.dataset.screen = stage;
   renderPanel();
   save();
-  const frame = app.querySelector('.camera-frame');
-  if (frame) frame.style.aspectRatio = frame.dataset.aspectRatio;
-  if (stream) {
-    const video = app.querySelector('video');
-    if (video) { video.srcObject = stream; void video.play().catch(() => {}); }
-  }
   document.body.classList.remove('flow-open');
   document.querySelector('#flow-toggle').setAttribute('aria-expanded', 'false');
   window.scrollTo(0, 0);
   app.focus({ preventScroll: true });
   if (production && stage !== 'game') checkpoint();
-}
-
-async function activateCamera() {
-  if (cameraBusy) return;
-  cameraBusy = true;
-  cameraError = '';
-  const generation = ++cameraGeneration;
-  render();
-  try {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error('unavailable');
-    const next = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } });
-    if (generation !== cameraGeneration || state.stage !== 'camera') { next.getTracks().forEach(track => track.stop()); return; }
-    stream?.getTracks().forEach(track => track.stop());
-    stream = next;
-    cameraChecks.clear();
-  } catch (error) {
-    if (generation !== cameraGeneration) return;
-    cameraError = error.name === 'NotAllowedError' ? 'カメラを使うには、ブラウザでの許可が必要です。画面だけ試すこともできます。' : 'カメラを使えませんでした。localhost または HTTPS で開くか、画面だけ試してください。';
-  } finally {
-    if (generation === cameraGeneration) { cameraBusy = false; render(); }
-  }
 }
 
 document.addEventListener('click', event => {
@@ -351,9 +314,9 @@ document.addEventListener('click', event => {
   if (action === 'go') go(target.dataset.stage);
   if (action === 'review') reviewJump(target.dataset.stage);
   if (action === 'sample') { const participant = state.participant; state = freshState(); state.participant = participant; sample(); go('recipes'); }
-  if (action === 'reset') { stopCamera(); state = freshState(); cameraError = ''; storageNotice = ''; go('intro'); }
-  if (action === 'camera') void activateCamera();
-  if (action === 'demo-game' || action === 'start-game') { state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = action === 'start-game' ? 'camera' : 'demo'; go('game'); }
+  if (action === 'reset') { nativeGame?.destroy();nativeGame=null; state = freshState(); storageNotice = ''; go('intro'); }
+  if (action === 'start-camera-game') {state.caught=[];state.evidence={};state.gameFinished=false;state.score=0;state.recipeId=null;state.gameInput='camera';go('game');}
+  if (action === 'demo-game') { state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = 'demo'; go('game'); }
   if (action === 'market-back') { state.market.step = target.dataset.step; save(); render(); }
   if (action === 'market-next') { state.market.step = 'budget'; save(); render(); }
   if (action === 'review-market') { state.market.step = 'concept'; go('parent-survey'); }
@@ -365,14 +328,6 @@ document.addEventListener('click', event => {
   }
   if (action === 'show-child') go('child-task');
   if (action === 'export-survey') exportResponses();
-});
-
-document.addEventListener('change', event => {
-  const target = event.target;
-  if (target.dataset.cameraCheck) {
-    target.checked ? cameraChecks.add(target.dataset.cameraCheck) : cameraChecks.delete(target.dataset.cameraCheck);
-    app.querySelector('[data-action="start-game"]').disabled = cameraChecks.size !== 3;
-  }
 });
 
 document.addEventListener('input', event => {
@@ -440,7 +395,7 @@ document.querySelector('#flow-toggle').addEventListener('click', event => {
   event.currentTarget.setAttribute('aria-expanded', String(open));
 });
 window.addEventListener('hashchange', render);
-window.addEventListener('pagehide', () => { stopCamera(); nativeGame?.destroy(); });
+window.addEventListener('pagehide', () => { gameMountGeneration++;nativeGame?.destroy(); });
 if (production) runtime.onSaved(acceptSaved);
 render();
 if (production) { if (state.finalPacket && !state.receipt) void submitFinal(); void runtime.flushOutbox(); }
