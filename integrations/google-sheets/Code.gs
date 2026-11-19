@@ -105,5 +105,5 @@ function writeCookgameTab_(book, name, rows) {
     const filter = sheet.getFilter();
     if (filter) filter.remove();
     sheet.getRange(1, 1, Math.max(2, height), width).createFilter();
-  } else sheet.getRange(1, 1, height, width).setWrap(true);
+  } else sheet.getRange(1, 1, height, width).setWrap(true).setHorizontalAlignment('left');
 }

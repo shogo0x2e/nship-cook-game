@@ -4,7 +4,7 @@ import {SessionError} from './session-store.ts';
 
 // Deliberate allowlist: never export private experience keys, auth tables or token hashes.
 export const surveyColumns = [
- ['id','受付ID','回答を識別するID'], ['device_id','端末ID','同じブラウザで再利用するUUID。人数ではありません'],
+ ['id','体験ID','回答データの内部ID。現在の版では受付IDと同じです'], ['receipt','受付ID','問い合わせ用に完了画面へ表示したID'], ['device_id','端末ID','同じブラウザで再利用するUUID。人数ではありません'],
  ['age','体験者の年齢','体験をした人の現在の年齢（歳）'], ['child_mode','子ども設問の回答形式','young-current-experience: 8歳以下／older-kindergarten-hypothetical: 9歳以上'],
  ['questionnaire_version','質問版','設問を変更した版'], ['recipe_version','レシピ版','提示レシピの版'], ['concept_version','構想版','提示した機能案の版'], ['inventory_version','在庫版','提示した在庫サンプルの版'],
  ['recipe_id','選択レシピ','curry: カレー／nikujaga: 肉じゃが など'], ['selected_ingredients','選択食材','ゲームで選んだ食材ID（複数は / 区切り）'],
@@ -31,12 +31,12 @@ export function requireSurveyExportKey(expected:string|undefined,authorization:s
  if(!supplied||!timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(supplied,'hex')))throw new SessionError(401,'Export key required');
 }
 export function surveySnapshot(db:DatabaseSync){
- const records=db.prepare('SELECT id,age,child_mode,questionnaire_version,recipe_id,created_at,completed_at,payload FROM experience_responses WHERE complete=1 AND demo=0 ORDER BY created_at,id LIMIT 5001').all();
+ const records=db.prepare('SELECT id,receipt,age,child_mode,questionnaire_version,recipe_id,created_at,completed_at,payload FROM experience_responses WHERE complete=1 AND demo=0 ORDER BY created_at,id LIMIT 5001').all();
  if(records.length>5000)throw new SessionError(503,'Export exceeds the configured response limit');
  const rows=records.map(row=>{
   const p=JSON.parse(row.payload as string);
   const cells:Record<string,unknown>={
-   id:row.id,device_id:p.deviceId,age:row.age,child_mode:row.child_mode,questionnaire_version:row.questionnaire_version,
+   id:row.id,receipt:row.receipt,device_id:p.deviceId,age:row.age,child_mode:row.child_mode,questionnaire_version:row.questionnaire_version,
    recipe_version:p.recipeVersion,concept_version:p.conceptVersion,inventory_version:p.inventoryVersion,recipe_id:row.recipe_id,selected_ingredients:p.selectedIngredients.join(' / '),
    game_fun:p.child.answers.game_fun,help_intent:p.child.answers.help_intent,child_play_frequency:p.child.playFrequency,daily_feasibility:p.child.answers.daily_feasibility,
    task_feasibility:p.parent.answers.task_feasibility,continued_use:p.parent.answers.continued_use,meal_preparation_ease:p.parent.answers.meal_preparation_ease,meal_decision_ease:p.parent.answers.meal_decision_ease,child_initiative:p.parent.answers.child_initiative,

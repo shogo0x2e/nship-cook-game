@@ -13,6 +13,7 @@ test('operator snapshot is authenticated and read-only, includes only completed 
  const base=`http://127.0.0.1:${(app.server.address() as {port:number}).port}`,url=base+'/api/operator/survey-snapshot';
  try{
   const respondentKey=randomBytes(32).toString('hex');app.experiences.save('7K3M9R',respondentKey,payload());app.experiences.save('8K3M9R',respondentKey,payload(true));app.experiences.save('9K3M9R',respondentKey,payload(false,false));
+  const oldId=randomUUID(),oldReceipt=app.experiences.save(oldId,respondentKey,payload()).receipt;
   const headers={Authorization:'Bearer '+key};
   for(const supplied of [undefined,'Bearer wrong','Bearer '+respondentKey])assert.equal((await fetch(url,{headers:supplied?{Authorization:supplied}:{}})).status,401);
   assert.equal((await fetch(url+'?token='+key)).status,401);
@@ -20,11 +21,13 @@ test('operator snapshot is authenticated and read-only, includes only completed 
   assert.equal((await fetch(url,{headers:{...headers,Origin:'https://untrusted.example'}})).status,403);
   assert.equal((await fetch(url,{method:'DELETE',headers:{...headers,Origin:base}})).status,405);
   const response=await fetch(url,{headers});assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
-  const result=await response.json();assert.equal(result.schemaVersion,1);assert.equal(result.scope,'completed-non-demo');assert.equal(result.count,1);assert.equal(result.rows[0][0],'7K3M9R');
+  const result=await response.json();assert.equal(result.schemaVersion,1);assert.equal(result.scope,'completed-non-demo');assert.equal(result.count,2);assert.equal(result.rows[0][0],'7K3M9R');
   const row=Object.fromEntries(result.columns.map((column:{id:string},index:number)=>[column.id,result.rows[0][index]]));
+  assert.equal(row.receipt,'7K3M9R');
+  const receiptIndex=result.columns.findIndex((c:{id:string})=>c.id==='receipt');assert.match(oldReceipt!,/^MG-/);assert.equal(result.rows.find((r:string[])=>r[0]===oldId)[receiptIndex],oldReceipt);
   assert.equal(row.child_play_frequency,'never');assert.equal(row.daily_feasibility,'');assert.equal(row.max_monthly_yen,500);assert.equal(row.child_comment,'=IMPORTXML("untrusted")');
   assert.ok(!JSON.stringify(result).includes(respondentKey));assert.ok(!JSON.stringify(result).includes(key));assert.ok(!/token_hash|password_hash|salt/.test(JSON.stringify(result)));
-  assert.equal(app.experiences.db.prepare('SELECT COUNT(*) n FROM experience_responses').get()?.n,3);
+  assert.equal(app.experiences.db.prepare('SELECT COUNT(*) n FROM experience_responses').get()?.n,4);
  }finally{app.server.closeAllConnections();await new Promise<void>(resolve=>app.server.close(()=>resolve()));}
  const disabled=await createSessionServer({port:0});await disabled.listen();
  try{assert.equal((await fetch(`http://127.0.0.1:${(disabled.server.address() as {port:number}).port}/api/operator/survey-snapshot`,{headers:{Authorization:'Bearer '+key}})).status,404);}
