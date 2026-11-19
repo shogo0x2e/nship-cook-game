@@ -84,6 +84,34 @@ try{
   check(`${name}: large preview, hands-free auto-start, complete-image preview inside lower right, result and camera cleanup`);
   await page.close();
  }
+ const slow=await openTrial({width:390,height:844});
+ await slow.evaluate(async()=>{
+  const {mountCameraTrial}=await import('/camera-runtime.js');
+  const profile={intervalMs:330,latencyMs:180,dropEvery:4};window.trackingTestProfile=profile;
+  const original=window.cookgameRuntime.mountGame;
+  window.cookgameRuntime.mountGame=(container,options)=>options.input==='camera'?mountCameraTrial(container,options.onFinish,true,profile):original(container,options);
+ });
+ await slow.locator('[data-action="start-camera-game"]').click();
+ await slow.waitForFunction(()=>document.querySelector('#field')?.dataset.phase==='playing');
+ const feedback=await slow.evaluate(()=>new Promise(resolve=>{
+  const started=performance.now();let frames=0,pausedFrames=0,flashes=0;
+  const tick=()=>{
+   const field=document.querySelector('#field');frames++;
+   if(field.dataset.tracked==='false')pausedFrames++;
+   if(field.dataset.trackingVisible!=='true'||document.querySelector('#tracking-note').textContent)flashes++;
+   if(performance.now()-started<4500)requestAnimationFrame(tick);else resolve({frames,pausedFrames,flashes});
+  };requestAnimationFrame(tick);
+ }));
+ assert.ok(feedback.frames>30);assert.ok(feedback.pausedFrames>0);assert.equal(feedback.flashes,0);
+ await slow.screenshot({path:'test-results/camera-framing/slow-inference-stable.png',fullPage:true});
+ await slow.evaluate(()=>{window.trackingTestProfile.dropEvery=1;});
+ await slow.waitForFunction(()=>document.querySelector('#field')?.dataset.trackingVisible==='false');
+ assert.match(await slow.locator('#tracking-note').innerText(),/時間は止まっている/);
+ await slow.evaluate(()=>{window.trackingTestProfile.dropEvery=0;});
+ await slow.waitForFunction(()=>document.querySelector('#field')?.dataset.tracked==='true');
+ assert.equal(await slow.locator('#tracking-note').innerText(),'');
+ await slow.locator('[data-game="finish"]').click();await slow.close();
+ check('3 fps with inference latency and intermittent misses: controls stop on missing input, feedback stays stable, sustained loss and recovery still work');
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
  await writeFile('test-results/camera-framing/report.json',JSON.stringify({checks,realCamera:false,syntheticPose:true,runtimeErrors:errors,externalRequests:external},null,2));
 }finally{await browser.close();app.server.closeAllConnections();await new Promise(resolve=>app.server.close(resolve));}

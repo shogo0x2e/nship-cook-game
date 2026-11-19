@@ -41,6 +41,7 @@ try {
   await page.screenshot({path:'test-results/avatar/01-reaching-landscape.png',fullPage:true});
   check('generated sprites and synthetic face render; raised hand catches exactly one ingredient');
   await pose('lost'); await page.waitForFunction(()=>document.querySelector('#field')?.dataset.tracked==='false');
+  await page.getByText('両ひじと両手をうつしてね。時間は止まっているよ。',{exact:true}).waitFor();
   assert.match(await page.locator('#tracking-note').innerText(),/時間は止まっている/);
   const count=await caught(), pixels=await topPixels(); await page.waitForTimeout(1300);
   assert.equal(await caught(),count); assert.equal(await topPixels(),pixels);

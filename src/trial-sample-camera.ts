@@ -1,15 +1,16 @@
 import type { CameraSource, Tracking } from './pose';
 import type { Landmark } from './avatar';
+export type TrialTrackingProfile={intervalMs?:number;latencyMs?:number;dropEvery?:number};
 export class TrialSampleCamera implements CameraSource {
   private frame = 0;
   private stream?: MediaStream;
   private stopped = false;
-  constructor(private callback: (tracking: Tracking) => void) {}
+  constructor(private callback: (tracking: Tracking) => void,private profile:TrialTrackingProfile={}) {}
   async start(video: HTMLVideoElement) {
     const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 480;
     const ctx = canvas.getContext('2d')!;
     this.stream = canvas.captureStream(30); video.srcObject = this.stream;
-    const started=performance.now();
+    const started=performance.now();let lastSample=-Infinity,samples=0;
     const tick = (now: number) => {
       if (this.stopped) return;
       const pose:string = now-started<3600?'both':'auto';
@@ -33,7 +34,11 @@ export class TrialSampleCamera implements CameraSource {
       ctx.lineWidth = 4; ctx.strokeStyle = '#6d563e'; ctx.beginPath(); ctx.arc(320, 146, 21, .15, Math.PI - .15); ctx.stroke();
       ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.strokeStyle = '#9caa7b';
       for (const [a, b] of [[11, 13], [13, 15], [12, 14], [14, 16]]) { ctx.beginPath(); ctx.moveTo(points[a].x * 640, points[a].y * 480); ctx.lineTo(points[b].x * 640, points[b].y * 480); ctx.stroke(); }
-      this.callback({ points, width: 640, height: 480, x: .5, inferenceMs: 0, capturedAt: now });
+      if(now-lastSample>=(this.profile.intervalMs??0)){
+        lastSample=now;samples++;
+        const latency=this.profile.latencyMs??0,dropped=Boolean(this.profile.dropEvery&&samples%this.profile.dropEvery===0);
+        this.callback({points:dropped?[]:points,width:640,height:480,x:dropped?null:.5,inferenceMs:latency,capturedAt:now-latency});
+      }
       this.frame = requestAnimationFrame(tick);
     };
     this.frame = requestAnimationFrame(tick);

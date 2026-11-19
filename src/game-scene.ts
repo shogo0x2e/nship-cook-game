@@ -1,9 +1,10 @@
 import { FramingGate } from './camera-framing';
+import { TrackingStability } from './tracking-stability';
 // @ts-expect-error Shared HTML view helpers are intentionally plain JavaScript.
 import { cameraGuide, framingFeedbackHTML, bindFramingFeedback } from '../design/recipe-prototype/camera-panel.js';
 import { basketWidth, caughtAtBasket, freshEvidence, ingredients as legacyIngredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Pair, type Evidence } from './game';
 import { PoseCamera, type Tracking, type CameraSource } from './pose';
-import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, trackingTimeout, type DrawArm, type Geometry } from './avatar';
+import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, type DrawArm, type Geometry } from './avatar';
 import { AvatarRenderer } from './avatar-renderer';
 import { challengeSeconds, challengeMaxPairs, catchPoints, challengeScore, type ChallengeResult, type CatchMoment, type PlayVariant } from './challenge';
 
@@ -24,6 +25,7 @@ export function mountGame(container: HTMLElement, options: Options) {
   let cameraState = mode === 'camera' ? 'idle' : 'ready';
   let cameraMessage = '';
   let targetArms = restingArms(), displayedArms = restingArms();
+  const trackingStability=new TrackingStability();
   let lastPose = -Infinity, sampleGap = 0;
   let previousHands: DrawArm[] = [], wasTracked = false;
   const gestureHold = new GestureHold();
@@ -78,13 +80,14 @@ export function mountGame(container: HTMLElement, options: Options) {
     if (lastTracking) sampleGap = tracking.capturedAt - lastTracking.capturedAt;
     lastTracking = tracking; lastPose = performance.now();
     targetArms = poseArms(tracking.points, tracking.width, tracking.height);
+    trackingStability.observe(targetArms.every(arm=>arm.valid),tracking.capturedAt,performance.now());
     avatar?.updateFace(tracking.points, video, performance.now());
     updateTracking();
   });
   void avatar?.ready.then(() => { if (!disposed) { assetsReady = true; updateTracking(); } }).catch(() => {
     if (!disposed) { cameraState = 'error'; cameraMessage = '絵を読み込めませんでした。ページを再読み込みしてください。'; updateTracking(); }
   });
-  const isTracked = () => targetArms.every(arm => arm.valid) && performance.now() - lastPose < trackingTimeout;
+  const isTracked = () => trackingStability.sample(performance.now()).control;
   function updateTracking() {
     if(framingPending&&(cameraState==='loading'||cameraState==='error')){
       const text=cameraState==='error'?cameraMessage:'カメラと姿勢の検出を準備しています…';
@@ -183,13 +186,19 @@ function tick(now: number) {
   const layout = avatarLayout(field.clientWidth, field.clientHeight);
   if (mode === 'camera') {
     updateTracking();
-    displayedArms = targetArms.map((arm, i) => arm.valid && now-lastPose < trackingTimeout ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: false, raised: false }) as typeof targetArms;
+    const feedback=trackingStability.sample(performance.now());
+    displayedArms = targetArms.map((arm, i) => tracked&&arm.valid ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: feedback.visible&&displayedArms[i].valid, raised: feedback.visible&&displayedArms[i].raised }) as typeof targetArms;
   }
   if(framingPending&&cameraState==='ready'&&assetsReady&&framing){const result=framing.sample(now,!document.hidden);updateFraming?.(result);if(result.ready)beginPlaying();}
   const hands = displayedArms.map((arm, i) => placeArm({ ...arm, valid: tracked && arm.valid }, i, layout));
   const note = $('#tracking-note');
-  if (note) note.textContent = mode === 'camera' && !tracked && phase === 'playing' ? '両ひじと両手をうつしてね。時間は止まっているよ。' : '';
-  if (mode === 'camera') field.dataset.tracked = String(tracked);
+  const feedback=trackingStability.sample(performance.now());
+  const noteText=mode==='camera'&&!feedback.visible&&phase==='playing'?'両ひじと両手をうつしてね。時間は止まっているよ。':'';
+  if(note&&note.textContent!==noteText)note.textContent=noteText;
+  if(mode==='camera'){
+    if(field.dataset.tracked!==String(tracked))field.dataset.tracked=String(tracked);
+    if(field.dataset.trackingVisible!==String(feedback.visible))field.dataset.trackingVisible=String(feedback.visible);
+  }
   field.dataset.phase = phase;
   updateGesture(hands, layout, dt, tracked);
   basketX += (targetX - basketX) * (1 - Math.exp(-dt * 13));
@@ -288,7 +297,7 @@ function draw() {
   if (avatar) {
     avatar.background(ctx, w, h);
     drawGestureButtons(ctx, layout);
-    avatar.draw(ctx, layout, displayedArms.map((arm, i) => placeArm(arm, i, layout)), cameraState === 'ready' && !displayedArms.some(arm => arm.valid), performance.now());
+    avatar.draw(ctx, layout, displayedArms.map((arm, i) => placeArm(arm, i, layout)), cameraState === 'ready' && !trackingStability.sample(performance.now()).visible, performance.now());
   }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const emojiFont = (size: number) => `${size}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
@@ -375,7 +384,7 @@ function draw() {
   function key(event:KeyboardEvent){if(mode!=='demo'||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();targetX=Math.max(.09,Math.min(.91,targetX+(event.key==='ArrowLeft'?-.07:.07)));}
   function resize(){ positionGestureButtons(); gestureHold.reset(phase === 'paused'); gestureProgress=0; previousHands = []; wasTracked = false; if(mode === 'camera'){const xs=avatarLayout(field.clientWidth,field.clientHeight).lanes;for(const item of items)item.x=xs[item.x<.5?0:1];}}
   window.addEventListener('resize',resize);
-  function visibility(){if(document.hidden)pause('画面を離れたので、時間を止めたよ。');}
+  function visibility(){if(document.hidden){trackingStability.reset();pause('画面を離れたので、時間を止めたよ。');}}
   container.addEventListener('click',click);container.addEventListener('pointermove',pointer);container.addEventListener('pointerdown',pointer);window.addEventListener('keydown',key);document.addEventListener('visibilitychange',visibility);
   renderPlates();animation=requestAnimationFrame(tick);
   if(options.autoPrepare && mode === 'camera') void prepareCamera();
