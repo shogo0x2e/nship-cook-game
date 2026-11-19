@@ -10,7 +10,8 @@ const errors=[],external=[],checks=[];
 const check=name=>{checks.push(name);console.log(`PASS ${name}`);};
 await mkdir('test-results/camera-framing',{recursive:true});
 async function openTrial(viewport){
- const page=await browser.newPage({viewport});
+ const page=await browser.newPage({viewport,hasTouch:Math.min(viewport.width,viewport.height)<1000,isMobile:Math.min(viewport.width,viewport.height)<1000});
+ page.on('dialog',dialog=>dialog.accept());
  page.on('pageerror',error=>errors.push(error.message));
  page.on('request',request=>{if(!request.url().startsWith(base+'/')&&!request.url().startsWith('blob:'))external.push(request.url());});
  await page.goto(`${base}/?demo=1`);
@@ -32,27 +33,24 @@ try{
  await denied.locator('[data-action="demo-game"]').click();
  await denied.locator('[data-game="start"]').click();
  await denied.locator('[data-game="finish"]').click();
+ await denied.locator('.portrait-return').waitFor();
+ await denied.setViewportSize({width:390,height:844});
  await denied.waitForFunction(()=>document.querySelector('main')?.dataset.screen==='result');
  check('one-button entry, recoverable camera denial and camera-free fallback in the public experience');
  for(const hash of ['', '#game', '#camera']){
-  await denied.evaluate(()=>{
-   const key='cookgame-experience-v1-demo',saved=JSON.parse(localStorage.getItem(key));
-   saved.stage='game';saved.gameInput='camera';saved.gameFinished=false;
-   saved.surveys.child.comment='再読み込み後にも保持するテスト回答';
-   localStorage.setItem(key,JSON.stringify(saved));
-  });
+  const previousId=await denied.locator('main').getAttribute('data-experience-id');
   await denied.goto(`${base}/?demo=1${hash}`);
   await denied.reload();
   await denied.locator('main[data-screen="intro"]').waitFor();
   assert.equal(await denied.locator('#native-game, #camera').count(),0);
-  assert.equal(await denied.locator('[name="age"]').inputValue(),'5');
-  assert.equal(await denied.evaluate(()=>JSON.parse(localStorage.getItem('cookgame-experience-v1-demo')).surveys.child.comment),'再読み込み後にも保持するテスト回答');
+  assert.equal(await denied.locator('[name="age"]').inputValue(),'');
+  assert.notEqual(await denied.locator('main').getAttribute('data-experience-id'),previousId);
  }
  // A restored history entry is also navigation, not a fresh start-button press.
  await denied.evaluate(()=>{location.hash='game';});
  await denied.waitForFunction(()=>location.hash==='#intro');
  assert.equal(await denied.locator('#native-game').count(),0);
- check('reopening the root, camera/game URLs or game history shows the PoC explanation without starting a camera or losing answers');
+ check('each new document starts at the explanation with a fresh ID; old camera/game URLs never activate a camera');
  await denied.close();
 
  const skipped=await openTrial({width:390,height:844});
@@ -83,7 +81,15 @@ try{
   await page.locator('.framing-overlay').waitFor();
   assert.equal(await page.locator('.game-preview-wrap').isVisible(),false);
   assert.equal(await page.locator('#camera').evaluate(video=>getComputedStyle(video).opacity),'1');
+  const framingLayout=await page.evaluate(()=>{
+   const video=document.querySelector('#camera').getBoundingClientRect(),panel=document.querySelector('.framing-game-feedback').getBoundingClientRect();
+   const rows=[...document.querySelectorAll('.camera-detection .detection-item')].map(el=>el.getBoundingClientRect());
+   return {apart:video.right<=panel.left,vertical:rows[0].bottom<=rows[1].top&&rows[1].bottom<=rows[2].top,inViewport:panel.bottom<=innerHeight,minRowHeight:Math.min(...rows.map(r=>r.height))};
+  });
+  assert.equal(framingLayout.apart,true);assert.equal(framingLayout.vertical,true);assert.equal(framingLayout.inViewport,true);assert.ok(framingLayout.minRowHeight>=44);
   await page.screenshot({path:`test-results/camera-framing/${name}-before.png`,fullPage:true});
+  await page.locator('.framing-countdown:not([hidden])').waitFor();
+  await page.screenshot({path:`test-results/camera-framing/${name}-countdown.png`});
   await page.waitForFunction(()=>document.querySelector('#field')?.dataset.phase==='playing');
   assert.equal(await page.locator('.framing-overlay').count(),0);
   const position=await page.evaluate(()=>{
@@ -105,6 +111,7 @@ try{
   await page.locator('.landscape-notice').waitFor({state:'hidden'});
   const stream=await page.locator('#camera').evaluateHandle(video=>video.srcObject);
   await page.locator('[data-game="finish"]').click();
+  if(name==='phone'){await page.locator('.portrait-return').waitFor();await page.setViewportSize(viewport);}
   await page.waitForFunction(()=>document.querySelector('main')?.dataset.screen==='result');
   assert.equal(await stream.evaluate(value=>value.getTracks().every(track=>track.readyState==='ended')),true);
   check(`${name}: large preview, hands-free auto-start, complete-image preview inside lower right, result and camera cleanup`);

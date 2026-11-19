@@ -8,7 +8,7 @@ export function inventorySummary(stock=defaultStock){
  return `<section class="inventory-source" aria-label="家にある食材・調味料"><figure class="inventory-source-photo"><img src="/experience/assets/household-fridge-v1.webp" alt="食材と調味料が入った冷蔵庫" width="960" height="640"></figure><details class="inventory-summary"><summary>${inventoryBadge('家にあります！')}<span>取得済みの食材・調味料 ${items.length}品</span><span class="inventory-disclosure">一覧を見る</span></summary><div class="food-chips">${items.map(([,item])=>`<span class="food-chip">${esc(item.name)}</span>`).join('')}</div></details></section>`;
 }
 export function inventoryRecipes(list,selected,button,stock=defaultStock){
- const groups=[{id:'available',title:'家にあるもので作れる料理',copy:'食材も調味料も、買い足さずに作れます。',recipes:list.filter(recipe=>!inventoryFor(recipe,stock).missing.length)},{id:'shopping',title:'買い足して作る料理',copy:'足りない食材・調味料を確認して選べます。',recipes:list.filter(recipe=>inventoryFor(recipe,stock).missing.length)}];
+ const groups=[{id:'available',title:'家にあるもので作れる料理',copy:'食材も調味料も、買い足さずに作れます。',recipes:list.filter(recipe=>!inventoryFor(recipe,stock).missing.length)},{id:'shopping',title:'買い足して作る料理',copy:'足りない食材・調味料を確認して選べます。',recipes:list.filter(recipe=>inventoryFor(recipe,stock).missing.length).sort((a,b)=>inventoryFor(a,stock).missing.length-inventoryFor(b,stock).missing.length)}];
  return `<div class="inventory-groups">${groups.map((group,column)=>`<section class="inventory-group" aria-labelledby="inventory-heading-${group.id}"><div class="inventory-group-heading"><h2 id="inventory-heading-${group.id}">${group.title}</h2><p>${group.copy}</p></div><div class="inventory-cards">${group.recipes.length?group.recipes.map(recipe=>{
   const {missing}=inventoryFor(recipe,stock),hit=matches(recipe,selected);
   const preview=missing.slice(0,2).map(row=>row.name).join('・')+(missing.length>2?` ほか${missing.length-2}品`:'');
@@ -20,5 +20,5 @@ function materialGroup(title,rows,need){
 }
 export function inventoryMaterials(recipe,stock=defaultStock){
  const {available,missing}=inventoryFor(recipe,stock);
- return `<div class="inventory-section-title"><h2>使う材料</h2><span>${recipe.servings}</span></div>${materialGroup('家にあるもの',available,false)}${materialGroup('買い物が必要なもの',missing,true)}`;
+ return `<div class="inventory-section-title"><h2>使う材料</h2></div>${materialGroup('家にあるもの',available,false)}${materialGroup('買い物が必要なもの',missing,true)}`;
 }

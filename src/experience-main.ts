@@ -5,16 +5,16 @@ import { rolePairSchedule, maxPairs, type IngredientId, type Evidence } from './
 import { experienceIngredients } from './content';
 import { experienceFoodIds } from './experience-protocol';
 import data from './experience-data.json';
-import { saveExperience, onSaved, flushOutbox } from './experience-sync';
+import { saveExperience, onSaved, onIdChanged, flushOutbox } from './experience-sync';
 const groups = ['staple','protein','vegetable'].map(role => data.foods.filter(food => food.group === role).map(food => food.id as IngredientId));
 declare global {
  interface Window { cookgameRuntime: {
-   saveExperience: typeof saveExperience; onSaved: typeof onSaved; flushOutbox: typeof flushOutbox;
+   saveExperience: typeof saveExperience; onSaved: typeof onSaved; onIdChanged: typeof onIdChanged; flushOutbox: typeof flushOutbox;
    mountGame: (container:HTMLElement,options:{input:'camera'|'demo';onFinish:(evidence:Evidence)=>Promise<void>})=>ReturnType<typeof mountGame>;
  }; }
 }
 window.cookgameRuntime = {
- saveExperience, onSaved, flushOutbox,
+ saveExperience, onSaved, onIdChanged, flushOutbox,
  mountGame: (container, options) => mountGame(container, {
   ...options, catalog: experienceIngredients, allowed: [...experienceFoodIds], schedule: rolePairSchedule(groups, maxPairs),
   canPlay: () => true, onStatus: async () => {}, showPreview: true, autoPrepare: true, startWhenFramed: true, localResult: true, landscapeOnly: true,

@@ -1,9 +1,10 @@
 import { inventoryVersion } from './inventory.js';
 import { inventorySummary, inventoryRecipes, inventoryMaterials } from './inventory-view.js';
 import { foods, recipes, matches, suggestions, childTaskFor, foodPairs, categoryLabels, duration, cookingFlow } from './recipes.js';
-import { questionnaireVersion, scale, questions, freshSurvey, restoreSurvey, missingQuestions, surveyQuestionCount, surveyForm } from './survey.js';
+import { questionnaireVersion, scale, questions, freshSurvey, missingQuestions, surveyQuestionCount, surveyForm } from './survey.js';
 import { freshParticipant, restoreParticipant, participantComplete, participantFields, isYoung } from './participant.js';
-import { offer, features, freshMarket, restoreMarket, validBudget, marketComplete, marketView } from './market.js';
+import { offer, features, freshMarket, validBudget, validInterests, marketComplete, marketView } from './market.js';
+import { newExperienceId } from './experience-id.js';
 
 const stages = [
   { id: 'intro', number: '01', title: '体験の説明', actor: '保護者の方へ', note: '何を体験するか、親に説明する。' },
@@ -25,39 +26,19 @@ const app = document.querySelector('#app');
 const panel = document.querySelector('#flow-panel');
 const actor = document.querySelector('#actor');
 const demoMode = new URLSearchParams(location.search).get('demo') === '1';
-const storageKey = (production ? 'cookgame-experience-v1' : 'cookgame-recipe-prototype-v3') + (demoMode ? '-demo' : '');
 const recordsKey = 'cookgame-recipe-survey-records-v1' + (demoMode ? '-demo' : '');
 if (demoMode) document.querySelector('.prototype-bar>span').textContent += '（デモ回答）';
-const storage = production ? localStorage : sessionStorage;
 const newKey = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), n => n.toString(16).padStart(2, '0')).join('');
-const freshState = () => ({ caught: [], evidence: {}, gameFinished: false, gameInput: 'demo', key: newKey(), sequence: 0, receipt: null, finalPacket: null, score: 0, recipeId: null, showAll: false, stage: 'intro', sessionId: crypto.randomUUID(), createdAt: new Date().toISOString(), participant: freshParticipant(), market: freshMarket(), surveys: { child: freshSurvey(), parent: freshSurvey() } });
+function browserId() {
+  const name='cookgame-browser-id-v1';
+  try { const saved=localStorage.getItem(name); if(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(saved || ''))return saved; } catch { /* Browsing remains possible without storage. */ }
+  const id=crypto.randomUUID();try { localStorage.setItem(name,id); } catch { /* This visit still has an identifier. */ }return id;
+}
+const deviceId=browserId();
+const freshState = () => ({ started: false, returnPortrait: false, caught: [], evidence: {}, gameFinished: false, gameInput: 'demo', key: newKey(), sequence: 0, receipt: null, finalPacket: null, score: 0, recipeId: null, showAll: false, stage: 'intro', sessionId: newExperienceId(), createdAt: new Date().toISOString(), participant: freshParticipant(), market: freshMarket(), surveys: { child: freshSurvey(), parent: freshSurvey() } });
 let state = freshState();
-try {
-  const saved = JSON.parse(storage.getItem(storageKey) ?? 'null');
-  if (saved && Array.isArray(saved.caught)) {
-    // Restore the recipe and game state. Old task selections are no longer used.
-    state = {
-      ...state,
-      key: /^[a-f0-9]{64}$/.test(saved.key) ? saved.key : state.key,
-      sequence: Number.isSafeInteger(saved.sequence) ? saved.sequence : 0,
-      receipt: typeof saved.receipt === 'string' ? saved.receipt : null,
-      finalPacket: saved.finalPacket ?? null,
-      evidence: saved.evidence ?? {},
-      gameFinished: saved.gameFinished === true,
-      gameInput: saved.gameInput === 'camera' ? 'camera' : 'demo',
-      caught: saved.caught.filter(id => foods.some(food => food.id === id)),
-      score: Number.isFinite(saved.score) ? saved.score : 0,
-      recipeId: recipes.some(recipe => recipe.id === saved.recipeId) ? saved.recipeId : null,
-      showAll: saved.showAll === true,
-      stage: typeof saved.stage === 'string' ? saved.stage : 'intro',
-      sessionId: typeof saved.sessionId === 'string' ? saved.sessionId : state.sessionId,
-      createdAt: typeof saved.createdAt === 'string' ? saved.createdAt : state.createdAt,
-      participant: restoreParticipant(saved.participant),
-      market: restoreMarket(saved.market),
-      surveys: { child: restoreSurvey('child', saved.surveys?.child), parent: restoreSurvey('parent', saved.surveys?.parent) },
-    };
-  }
-} catch { /* Session storage is optional in this local prototype. */ }
+// Each document visit is a new experience. Only the browser ID and delivery outbox persist.
+for (const key of ['cookgame-experience-v1','cookgame-experience-v1-demo'])try { localStorage.removeItem(key); } catch { /* Optional cleanup of the previous resume state. */ }
 let nativeGame = null;
 let gameMountGeneration=0;
 let gameEntryRequested=false;
@@ -70,14 +51,19 @@ const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 const button = (label, action, extra = '') => `<button class="primary" data-action="${action}" ${extra}>${label}<span aria-hidden="true">→</span></button>`;
 const secondary = (label, action, extra = '') => `<button class="secondary" data-action="${action}" ${extra}>${label}</button>`;
 const recipeNow = () => recipes.find(recipe => recipe.id === state.recipeId);
-const heading = (eyebrow, title, copy = '') => `<div class="page-heading"><p class="eyebrow">${eyebrow}</p><h1>${title}</h1>${copy ? `<p class="lead">${copy}</p>` : ''}</div>`;
+const heading = (eyebrow, title, copy = '') => `<div class="page-heading">${eyebrow?`<p class="eyebrow">${eyebrow}</p>`:''}<h1>${title}</h1>${copy ? `<p class="lead">${copy}</p>` : ''}</div>`;
 const back = (stage, text = '戻る') => `<button class="back" data-action="go" data-stage="${stage}"><span aria-hidden="true">←</span> ${text}</button>`;
 const credit = recipe => `<p class="photo-credit">完成写真・元レシピ：<a href="${recipe.source}" target="_blank" rel="noopener noreferrer">${recipe.publisher}</a></p>`;
 const photo = (recipe, className = 'recipe-photo') => `<img class="${className}" src="${recipe.image}" alt="${esc(recipe.name)}の完成写真" loading="eager" width="720" height="540">`;
 const chips = (ids, editable = false) => `<div class="food-chips">${foods.filter(food => ids.includes(food.id)).map(food => `<${editable ? 'button' : 'span'} class="food-chip" ${editable ? `data-action="remove-food" data-food="${food.id}"` : ''}><span aria-hidden="true">${food.emoji}</span>${food.name}${editable ? '<span aria-hidden="true">×</span>' : ''}</${editable ? 'button' : 'span'}>`).join('')}</div>`;
 
+let warnsOnLeave=false;
+const warnOnLeave=event=>{event.preventDefault();event.returnValue='';};
 function save() {
-  try { storage.setItem(storageKey, JSON.stringify(state)); } catch { /* Private mode remains usable. */ }
+  const warn=state.started&&!state.receipt;
+  if(warn===warnsOnLeave)return;
+  warnsOnLeave=warn;
+  window[warn?'addEventListener':'removeEventListener']('beforeunload',warnOnLeave);
 }
 function readRecords() {
   try { const records = JSON.parse(localStorage.getItem(recordsKey) || '[]'); return Array.isArray(records) ? records : []; }
@@ -85,7 +71,7 @@ function readRecords() {
 }
 function responseRecord() {
   const recipe = recipeNow();
-  return { sessionId: state.sessionId, questionnaireVersion, inventoryVersion, createdAt: state.createdAt, updatedAt: new Date().toISOString(), demo: demoMode,
+  return { sessionId: state.sessionId, deviceId, questionnaireVersion, inventoryVersion, createdAt: state.createdAt, updatedAt: new Date().toISOString(), demo: demoMode,
     participant: { ...state.participant, childSurveyMode: isYoung(state.participant) ? 'young-current-experience' : 'older-kindergarten-hypothetical' },
     questionnaire: { child: questions.child.map(q => ({ id: q.id, text: isYoung(state.participant) ? q.youngText : q.text })), parent: questions.parent },
     plannedService: { offer, features, responses: JSON.parse(JSON.stringify(state.market)) },
@@ -107,11 +93,12 @@ function packet(complete = false) {
   const market = state.market;
   const evidence = Object.fromEntries(foods.map(food => [food.id, state.evidence[food.id] || { offered: 0, caught: 0 }]));
   return { id: state.sessionId, key: state.key, payload: {
-    questionnaireVersion, recipeVersion: 'daily-2026-11-19-v1', conceptVersion: offer.version, inventoryVersion,
+    questionnaireVersion, recipeVersion: 'daily-2026-11-19-v1', conceptVersion: offer.version, inventoryVersion, deviceId,
     sequence: ++state.sequence, age: Number(state.participant.age), demo: demoMode, stage: complete ? 'done' : state.stage,
     selectedIngredients: [...new Set(state.caught)], evidence, recipeId: state.recipeId,
     child: { answers: { ...state.surveys.child.answers }, comment: state.surveys.child.comment },
-    parent: { answers: { ...state.surveys.parent.answers }, comment: state.surveys.parent.comment, gameplayStatus: state.surveys.parent.gameplayStatus || null },
+    parent: { answers: { ...state.surveys.parent.answers }, comment: state.surveys.parent.comment, gameplayStatus: state.surveys.parent.gameplayStatus || null, gameplayComment: state.surveys.parent.gameplayComment },
+    serviceFeedback: { interestedFeatures: [...market.interestedFeatures], comment: market.featureComment },
     payment: validBudget(market) ? { kind: market.budgetKind, maxMonthlyYen: market.budgetKind === 'paid' ? Number(market.maxMonthlyYen) : market.budgetKind === 'free' ? 0 : null } : null,
     gameInput: state.gameInput, complete,
   }};
@@ -122,8 +109,8 @@ function checkpoint() {
   const draft = packet(); save();
   void runtime.saveExperience(draft).catch(() => {});
 }
-function acceptSaved(ack) {
-  if (ack.id !== state.sessionId || !ack.complete || !ack.receipt || !state.finalPacket) return;
+function acceptSaved(ack, key=state.key) {
+  if (key !== state.key || ack.id !== state.sessionId || !ack.complete || !ack.receipt || !state.finalPacket) return;
   state.receipt = ack.receipt; sendError = ''; sending = false; save(); go('done');
 }
 async function submitFinal() {
@@ -134,7 +121,7 @@ async function submitFinal() {
   catch (error) { sending = false; sendError = error.message || '回答を送信できませんでした。'; render(); }
 }
 function sendingView() {
-  return `${heading('回答の送信', sending ? '回答を送信しています。' : '回答をもう一度<br>送信してください。')}<p class="lead">保存が完了すると、受付番号が表示されます。</p><p class="survey-error" role="alert">${esc(sendError)}</p>${sending ? '<p role="status">送信中…</p>' : button('回答を再送信する', 'retry-send')}<p class="plain-note">回答内容は保持しています。通信できる状態で、この画面から再送信してください。</p>`;
+  return `${heading('回答の送信', sending ? '回答を送信しています。' : '回答をもう一度<br>送信してください。')}<p class="lead">保存が完了すると、受付IDが表示されます。</p><p class="survey-error" role="alert">${esc(sendError)}</p>${sending ? '<p role="status">送信中…</p>' : button('回答を再送信する', 'retry-send')}<p class="plain-note">通信できる状態で、この画面から再送信してください。画面を閉じると、この体験には戻れません。</p>`;
 }
 function exportResponses() {
   const records = readRecords();
@@ -155,7 +142,7 @@ function updateSurvey(form) {
     else delete response.answers[question.id];
   }
   response.comment = String(data.get('comment') || ''); response.submittedAt = null;
-  if (role === 'parent') response.gameplayStatus = String(data.get('gameplayStatus') || '');
+  if (role === 'parent') { response.gameplayStatus = String(data.get('gameplayStatus') || ''); response.gameplayComment=String(data.get('gameplayComment') || ''); }
   if (role === 'parent') { state.market.experienceCompletedAt = null; state.market.submittedAt = null; }
   const missing = missingQuestions(role, response);
   document.querySelector('#survey-progress').textContent = `回答済み ${surveyQuestionCount(role) - missing.length} / ${surveyQuestionCount(role)}`;
@@ -164,10 +151,12 @@ function updateSurvey(form) {
   if (production) { clearTimeout(draftTimer); draftTimer = setTimeout(checkpoint, 900); }
 }
 function routeId() { return location.hash.slice(1).split('?')[0]; }
-function go(stage) {
-  if (location.hash === `#${stage}`) render();
-  else location.hash = stage;
+function go(stage, step) {
+  const hash=`#${stage}${step?`?step=${step}`:''}`;
+  if (location.hash === hash) render();
+  else location.hash = hash;
 }
+const phoneViewport=()=>navigator.maxTouchPoints>0&&Math.min(innerWidth,innerHeight)<=600;
 function sample() {
   state.caught = ['rice', 'pork', 'potato'];
   state.score = 300;
@@ -207,6 +196,8 @@ function gameView() {
 }
 
 function resultView() {
+  if(state.returnPortrait&&innerWidth>innerHeight)return `<div class="portrait-return" role="status"><svg viewBox="0 0 120 100" aria-hidden="true"><rect x="38" y="12" width="44" height="76" rx="7" fill="none" stroke="currentColor" stroke-width="4"/><path d="M24 72C6 46 15 19 35 9m-11-2 13 1-2 13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h1>端末を縦に戻してください。</h1><p>ゲームはおしまいです。<br>縦にすると、結果を確認できます。</p></div>`;
+  state.returnPortrait=false;
   return `<div class="center-view">${heading('ゲーム結果', 'ナイスキャッチ！')}<p class="score">${state.score}<span>点</span></p><p class="section-label">今回、選んだ食材</p>${chips(state.caught)}${!state.caught.length ? '<p class="muted">今回はキャッチがありませんでした。</p>' : ''}${button('つぎへ', 'go', 'data-stage="handoff"')}</div>`;
 }
 
@@ -217,28 +208,25 @@ function handoffView() {
 function recipeListView() {
   const list = suggestions(state.caught, state.showAll);
   const cards = inventoryRecipes(list, state.caught, recipe => button('レシピを見る', 'open-recipe', `data-recipe="${recipe.id}" aria-label="${recipe.name}のレシピを見る"`));
-  return `${heading('保護者の方へ', '選んだ食材と、<br>家にあるものから提案します。')}<section class="chosen-foods"><p class="section-label">ゲームで選択した食材</p>${state.caught.length ? chips(state.caught) : '<p class="muted">食材は未選択です。</p>'}</section>${inventorySummary()}${list.length ? cards : `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>`}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}<p class="plain-note">今回は取得済みの在庫サンプルを使用しています。完成写真と元レシピの出典は、各レシピで確認できます。</p>`;
+  return `${heading('保護者の方へ', '選んだ食材と、<br>冷蔵庫にあるものから提案します。')}<section class="chosen-foods"><p class="section-label">ゲームで選択した食材</p>${state.caught.length ? chips(state.caught) : '<p class="muted">食材は未選択です。</p>'}</section>${inventorySummary()}${list.length ? cards : `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>`}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}<p class="plain-note">今回は取得済みの在庫サンプルを使用しています。完成写真と元レシピの出典は、各レシピで確認できます。</p>`;
 }
 
 function chooseRecipe(recipe) {
   if (state.recipeId !== recipe.id && Object.values(state.surveys).some(response => Object.keys(response.answers).length)) {
-    state.sessionId = crypto.randomUUID(); state.key = newKey(); state.sequence = 0; state.receipt = null; state.finalPacket = null; state.createdAt = new Date().toISOString(); state.surveys = { child: freshSurvey(), parent: freshSurvey() };
+    state.surveys = { child: freshSurvey(), parent: freshSurvey() };
     state.market = freshMarket();
   }
   state.recipeId = recipe.id;
 }
 function recipeDetailView(recipe) {
   const hit = matches(recipe, state.caught);
-  const task = childTaskFor(recipe);
   return `${back('recipes', '候補に戻る')}<p class="eyebrow">レシピを確認</p>
     ${photo(recipe, 'recipe-photo detail-photo')}<h1 class="recipe-title">${recipe.name}</h1>
     <div class="recipe-meta"><span>${duration(recipe)}</span><span>${recipe.servings}</span></div>
     ${hit.length ? `<p class="match-label">選んだ${hit.map(food => food.name).join('・')}を使います</p>` : ''}
-    <p class="lead recipe-description">${recipe.description}</p>${credit(recipe)}
-    <p class="recipe-child-role"><b>子どもの担当：</b>${task.title}</p>
     <section class="content-section">${inventoryMaterials(recipe)}</section>
     <section class="content-section"><h2>料理の流れ</h2><ol class="cooking-overview">${cookingFlow(recipe).map(step => `<li${step.photo ? ' class="has-step-photo"' : ''}><span class="role-label ${step.role === 'child' ? 'child-role' : ''}">${step.role === 'child' ? '子ども' : '大人'}</span><div class="flow-step-copy"><b>${step.title}</b><p>${step.detail}</p></div>${step.photo ? `<img class="flow-step-photo" src="${step.photo}" alt="${step.photoAlt}" width="600" height="400" loading="lazy" decoding="async">` : ''}</li>`).join('')}</ol></section>
-    <div class="sticky-action">${button('子どもに渡す', 'show-child')}</div>`;
+    ${credit(recipe)}<div class="sticky-action">${button('子どもに渡す', 'show-child')}</div>`;
 }
 function childTaskView(recipe) {
   const task = childTaskFor(recipe);
@@ -248,7 +236,6 @@ function childTaskView(recipe) {
     ${task.photo ? `<figure class="task-figure"><img src="${task.photo}" alt="${task.title}の工程イメージ" width="1448" height="1086"></figure>` : ''}
     <ol class="child-instructions">${task.instructions.map((line, i) => `<li><span>${i + 1}</span><p>${line}</p></li>`).join('')}</ol>
     <p class="child-care">${task.care}</p>
-    <p class="plain-note">いまは みるだけで だいじょうぶだよ。</p>
     ${button('かんそうを きかせてね', 'go', 'data-stage="child-survey"')}`;
 }
 
@@ -256,12 +243,12 @@ function surveyView(parent) {
   const role = parent ? 'parent' : 'child';
   if (parent && state.market.step !== 'experience') return marketView(state.market, production);
   const young = !parent && isYoung(state.participant);
-  return `${heading(parent ? '保護者の方へ' : '子どもの方へ', young ? 'あそんだ かんそうを<br>おしえてね。' : '体験の感想を<br>教えてください。')}${surveyForm(role, state.surveys[role], young)}`;
+  return `${heading('', young ? 'あそんだ かんそうを<br>おしえてね。' : '体験の感想を<br>教えてください。')}${surveyForm(role, state.surveys[role], young)}`;
 }
 function doneView() {
-  if (production) return `<div class="center-view">${heading('回答の保存が完了しました', 'ありがとう<br>ございました。')}<p class="lead">回答を受け付けました。</p><p class="receipt">受付番号：${esc(state.receipt)}</p>${demoMode ? '<p class="plain-note">デモ回答として保存しました。通常の集計からは除外します。</p>' : ''}${secondary('新しい体験を始める', 'reset')}</div>`;
+  if (production) return `<div class="completion-view"><h1>ありがとう<br>ございました</h1><p class="lead">回答を受け付けました。<br>この画面を閉じて終了してください。</p><div class="receipt"><span>受付ID</span><strong>${esc(state.receipt)}</strong></div><section class="completion-contact"><h2>お問い合わせ</h2><p>芝浦工業大学 ビジネスコンテスト チーム芝<br>代表：北田 章伍</p><a href="mailto:bp22026@shibaura-it.ac.jp?subject=${encodeURIComponent(`回答に関するお問い合わせ（受付ID：${state.receipt}）`)}">bp22026@shibaura-it.ac.jp</a><p>ご不明な点がありましたら、お気軽にお問い合わせください。<br>回答に関するお問い合わせの際は、受付IDをお知らせください。</p></section></div>`;
   const complete = state.surveys.child.submittedAt && state.surveys.parent.submittedAt && marketComplete(state.market);
-  return `<div class="center-view">${heading('体験のおわり', 'ありがとう<br>ございました。', '料理とお手伝いの内容を見る体験は、ここまでです。')}
+  return `<div class="center-view">${heading('体験のおわり', 'ありがとう<br>ございました', '料理とお手伝いの内容を見る体験は、ここまでです。')}
     <p class="plain-note">${storageNotice || (complete ? '回答をこの端末のブラウザに保存しました。' : 'アンケートはまだ完了していません。')}${demoMode ? ' デモ回答は通常の回答とは別に保存しています。' : ''}</p>
     ${secondary('回答データをJSON保存', 'export-survey')}${secondary('レシピの確認をもう一度試す', 'sample')}
   </div>`;
@@ -271,7 +258,12 @@ function render() {
   let stage = production && state.finalPacket ? (state.receipt ? 'done' : 'parent-survey') : routeId() || (production ? 'intro' : state.stage);
   stage = ({ help: 'recipe', 'child-recipe': 'child-task' })[stage] ?? stage;
   if (!stages.some(item => item.id === stage)) stage = 'intro';
+  if(stage==='parent-survey'){
+    const step=new URLSearchParams(location.hash.split('?')[1]||'').get('step');
+    if(['experience','concept','budget'].includes(step))state.market.step=step;
+  }
   if (stage !== 'intro' && !participantComplete(state.participant)) stage = 'intro';
+  if(production&&stage==='done'&&!state.receipt)stage=participantComplete(state.participant)?'parent-survey':'intro';
   if (['recipe', 'child-task'].includes(stage) && !recipeNow()) stage = 'recipes';
   // A restored URL or browser history must never activate the camera by itself.
   if (production && stage === 'game' && !gameEntryRequested) stage = 'intro';
@@ -294,7 +286,7 @@ function render() {
   if (stage === 'game' && (production || state.gameInput==='camera')) {
     const onFinish=async evidence=>{
       if(generation!==gameMountGeneration)return;
-      state.gameFinished=true;state.evidence=Object.fromEntries(foods.map(food=>[food.id,evidence[food.id]]));
+      state.gameFinished=true;state.returnPortrait=phoneViewport();state.evidence=Object.fromEntries(foods.map(food=>[food.id,evidence[food.id]]));
       state.caught=foods.flatMap(food=>Array(evidence[food.id].caught).fill(food.id));state.score=state.caught.length*100;save();checkpoint();go('result');
     };
     if(production)nativeGame=runtime.mountGame(app.querySelector('#native-game'),{input:state.gameInput,onFinish});
@@ -303,7 +295,10 @@ function render() {
     }).catch(()=>{if(generation===gameMountGeneration)app.innerHTML='<p>ゲームを読み込めませんでした。ページを再読み込みしてください。</p>';});
   }
   app.dataset.screen = stage;
+  app.dataset.experienceId=state.sessionId;
   document.body.classList.toggle('is-game', stage === 'game');
+  document.body.classList.toggle('is-portrait-return',Boolean(app.querySelector('.portrait-return')));
+  document.querySelector('.app-footer').hidden=stage==='done';
   renderPanel();
   save();
   document.body.classList.remove('flow-open');
@@ -325,10 +320,10 @@ document.addEventListener('click', event => {
   if (action === 'reset') { nativeGame?.destroy();nativeGame=null; state = freshState(); storageNotice = ''; go('intro'); }
   if (action === 'start-camera-game') {gameEntryRequested=true;state.caught=[];state.evidence={};state.gameFinished=false;state.score=0;state.recipeId=null;state.gameInput='camera';go('game');}
   if (action === 'demo-game') { gameEntryRequested=true;state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = 'demo'; go('game'); }
-  if (action === 'skip-game') { state.gameFinished = true; save(); go('handoff'); }
-  if (action === 'market-back') { state.market.step = target.dataset.step; save(); render(); }
-  if (action === 'market-next') { state.market.step = 'budget'; save(); render(); }
-  if (action === 'review-market') { state.market.step = 'concept'; go('parent-survey'); }
+  if (action === 'skip-game') { state.gameFinished = true; state.returnPortrait=phoneViewport(); save(); go(state.returnPortrait&&innerWidth>innerHeight?'result':'handoff'); }
+  if (action === 'market-back') { state.market.step = target.dataset.step; save(); go('parent-survey',state.market.step); }
+  if (action === 'market-next') { state.market.step = 'budget'; save(); go('parent-survey','budget'); }
+  if (action === 'review-market') { state.market.step = 'concept'; go('parent-survey','concept'); }
   if (action === 'catch') { const pair = foodPairs[state.caught.length]; for (const id of pair) { state.evidence[id] ||= {offered:0,caught:0}; state.evidence[id].offered++; } state.evidence[target.dataset.food].caught++; state.caught.push(target.dataset.food); state.score += 100; state.caught.length >= foodPairs.length ? go('result') : render(); }
   if (action === 'show-all') { state.showAll = true; render(); }
   if (action === 'open-recipe') {
@@ -353,10 +348,9 @@ document.addEventListener('submit', event => {
     const participant = restoreParticipant({ age: data.get('age') });
     if (!participantComplete(participant)) return;
     if (JSON.stringify(state.participant) !== JSON.stringify(participant)) {
-      state.sessionId = crypto.randomUUID(); state.key = newKey(); state.sequence = 0; state.receipt = null; state.finalPacket = null; state.createdAt = new Date().toISOString();
       state.surveys = { child: freshSurvey(), parent: freshSurvey() }; state.market = freshMarket();
     }
-    state.participant = participant; save(); go('camera'); return;
+    state.started=true; state.participant = participant; save(); go('camera'); return;
   }
   const marketForm = event.target.closest('#market-form');
   if (marketForm) { event.preventDefault(); submitMarket(marketForm); return; }
@@ -372,24 +366,31 @@ document.addEventListener('submit', event => {
     return;
   }
   if (role === 'parent') {
-    state.market.experienceCompletedAt = new Date().toISOString(); state.market.step = 'concept'; save(); persistResponse(); render();
+    state.market.experienceCompletedAt = new Date().toISOString(); state.market.step = 'concept'; save(); persistResponse(); go('parent-survey','concept');
   } else {
     state.surveys.child.submittedAt = new Date().toISOString(); save(); persistResponse(); go('parent-survey');
   }
 });
 
-function updateMarket(form) {
+function updateMarket(form, target) {
+  if(target?.name==='interestedFeatures'&&target.checked){
+    form.querySelectorAll('[name="interestedFeatures"]').forEach(input=>{if(input!==target&&(target.value==='none'||input.value==='none'))input.checked=false;});
+  }
   const data = new FormData(form); const market = state.market;
   market.budgetKind = String(data.get('budgetKind') || '');
   const field = form.querySelector('.amount-field'); const input = form.querySelector('[name="maxMonthlyYen"]');
   field.hidden = market.budgetKind !== 'paid'; input.disabled = market.budgetKind !== 'paid'; input.required = market.budgetKind === 'paid';
   market.maxMonthlyYen = input.value;
+  market.interestedFeatures=data.getAll('interestedFeatures').map(String);
+  market.featureComment=String(data.get('featureComment')||'');
   market.submittedAt = null; state.surveys.parent.submittedAt = null; save();
+  if(production){clearTimeout(draftTimer);draftTimer=setTimeout(checkpoint,900);}
 }
 function submitMarket(form) {
   updateMarket(form); const market = state.market;
   if (!validBudget(market)) { document.querySelector('#market-error').textContent = '回答を選び、金額を入力する場合は1円以上の整数を入力してください。'; return; }
-  if (!market.experienceCompletedAt || missingQuestions('parent', state.surveys.parent).length) { market.step = 'experience'; save(); render(); return; }
+  if (!validInterests(market)) { document.querySelector('#market-error').textContent = '気になる機能を1つ以上選んでください。ない場合は「特にない」を選べます。'; form.querySelector('[name="interestedFeatures"]').focus(); return; }
+  if (!market.experienceCompletedAt || missingQuestions('parent', state.surveys.parent).length) { market.step = 'experience'; save(); go('parent-survey','experience'); return; }
   if (production && !state.recipeId) { go('recipes'); return; }
   if (production && missingQuestions('child', state.surveys.child).length) { go('child-survey'); return; }
   if (market.budgetKind !== 'paid') market.maxMonthlyYen = market.budgetKind === 'free' ? '0' : '';
@@ -404,10 +405,13 @@ document.querySelector('#flow-toggle').addEventListener('click', event => {
   event.currentTarget.setAttribute('aria-expanded', String(open));
 });
 window.addEventListener('hashchange', render);
-window.addEventListener('pagehide', () => { gameMountGeneration++;nativeGame?.destroy(); });
-if (production) runtime.onSaved(acceptSaved);
-// Reopening the entry or a previous camera/game URL starts at the PoC explanation.
-// Submitted answers and any pending final submission retain their recovery flow.
-if (production && !state.finalPacket && ['', 'camera', 'game'].includes(routeId())) history.replaceState(null, '', '#intro');
+window.addEventListener('resize',()=>{if(state.stage==='result'&&state.returnPortrait&&innerHeight>=innerWidth)render();});
+window.addEventListener('pagehide', () => { clearTimeout(draftTimer);checkpoint();gameMountGeneration++;nativeGame?.destroy(); });
+window.addEventListener('pageshow', event=>{if(event.persisted){state=freshState();gameEntryRequested=false;history.replaceState(null,'','#intro');render();}});
+if (production) {
+  runtime.onSaved(acceptSaved);
+  runtime.onIdChanged(({key,id})=>{if(state.key!==key)return;state.sessionId=id;if(state.finalPacket)state.finalPacket={...state.finalPacket,id};app.dataset.experienceId=id;});
+  history.replaceState(null, '', '#intro');
+}
 render();
-if (production) { if (state.finalPacket && !state.receipt) void submitFinal(); void runtime.flushOutbox(); }
+if (production) void runtime.flushOutbox();

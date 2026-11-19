@@ -68,7 +68,7 @@ export async function createSessionServer(options:ServerOptions={}){
         if(path==='/api/experience-version'&&req.method==='GET'){
           json(res,200,{flow:'anonymous-poc-v1',questionnaireVersion,recipeVersion,conceptVersion,persistence:'sqlite'});return;
         }
-        const experiencePath=/^\/api\/experiences\/([0-9a-f-]{36})$/i.exec(path);
+        const experiencePath=/^\/api\/experiences\/([23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}|[0-9a-f-]{36})$/i.exec(path);
         if(experiencePath){
           const key=req.headers.authorization?.match(/^Bearer ([0-9a-f]{64})$/)?.[1];
           limiter.check('experience-global',identity,1200,60_000);

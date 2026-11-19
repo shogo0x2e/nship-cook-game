@@ -1439,6 +1439,62 @@ html[data-mode=production] .young-score-label,html[data-mode=production] .choice
 .native-game .framing-game-feedback button{pointer-events:auto;}
 .native-game .framing-field.has-face .guide-face,.native-game .framing-field.has-elbows .guide-arms,.native-game .framing-field.has-elbows .guide-torso,.native-game .framing-field.has-hands .guide-hands{stroke:#d7f7c5;}
 .native-game .framing-game-feedback button[hidden]{display:none;}
+
+/* Keep framing checks beside the complete preview, visible from camera distance. */
+.native-game.is-framing .field{--framing-sidebar:clamp(190px,28%,300px);background:#e6eadf;}
+.native-game.is-framing #game-canvas{visibility:hidden;}
+.native-game .framing-field .avatar-source{inset:0 auto 0 0;width:calc(100% - var(--framing-sidebar) - 16px);height:100%;}
+.native-game .framing-overlay .body-guide{inset:3% auto 3% 0;width:calc(100% - var(--framing-sidebar) - 16px);height:94%;}
+.native-game .framing-game-feedback{top:0;right:0;bottom:0;left:auto;width:var(--framing-sidebar);padding:16px;display:flex;flex-direction:column;justify-content:center;gap:14px;border-radius:0;background:#fafbf4;}
+.native-game .framing-game-feedback .camera-detection{display:grid;grid-template-columns:1fr;gap:10px;margin:0;}
+.native-game .framing-game-feedback .detection-item{display:grid;grid-template-columns:38px 1fr;gap:0 10px;justify-content:start;text-align:left;padding:12px;border:1px solid #d7dfcd;border-radius:12px;background:#f0f2e9;font-size:22px;font-weight:700;line-height:1.35;}
+.native-game .framing-game-feedback .detection-item.is-detected{background:#e4efda;border-color:#86a575;color:#315e3e;}
+.native-game .framing-game-feedback .detection-icon{grid-row:1/3;width:34px;height:34px;font-size:27px;}
+.native-game .framing-game-feedback .detection-item small{display:block;font-size:11px;font-weight:500;line-height:1.5;margin-top:3px;}
+.native-game .framing-game-feedback .framing-message{font-size:14px;min-height:3.6em;line-height:1.8;}
+.native-game .framing-countdown{position:absolute;inset:0 calc(var(--framing-sidebar) + 16px) 0 0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;z-index:3;color:#294f38;}
+.native-game .framing-countdown[hidden]{display:none;}
+.native-game .framing-countdown>span{display:grid;place-items:center;width:clamp(90px,20vh,150px);height:clamp(90px,20vh,150px);background:#fffdf3ed;border:3px solid #fffdf6;border-radius:50%;font-family:ui-sans-serif,system-ui,sans-serif;font-size:clamp(64px,15vh,110px);font-weight:800;line-height:1;}
+.native-game .framing-countdown small{padding:4px 12px;border-radius:20px;background:#fffdf3ed;font-size:14px;font-weight:700;}
+@media(orientation:landscape) and (max-height:600px){
+ .native-game .framing-game-feedback{padding:10px;gap:8px;}
+ .native-game .framing-game-feedback .camera-detection{gap:6px;}
+ .native-game .framing-game-feedback .detection-item{padding:6px 10px;font-size:19px;grid-template-columns:30px 1fr;}
+ .native-game .framing-game-feedback .detection-icon{width:28px;height:28px;font-size:23px;}
+ .native-game .framing-game-feedback .detection-item small{font-size:10px;}
+ .native-game .framing-game-feedback .framing-message{font-size:12px;line-height:1.65;min-height:3.3em;}
+}
+
+/* Question cards share spacing, borders and typography. */
+.question-card{border:1px solid #d8dfcd;border-radius:10px;background:#fffef9;padding:22px 20px;margin:28px 0;min-width:0;}
+.question-card h2{font-size:17px;font-weight:500;line-height:1.9;margin:0 0 18px;}
+.gameplay-options{display:flex;flex-direction:column;gap:0;}
+.gameplay-option{display:flex;align-items:center;gap:12px;padding:14px 8px;border-top:1px solid #e6e8dd;font-size:14px;line-height:1.8;cursor:pointer;}
+.gameplay-option input{flex:none;width:20px;height:20px;accent-color:var(--green);margin:0;}
+.gameplay-option:has(input:checked){background:#edf3e5;border-radius:7px;}
+.required-label{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:5px;}
+.budget-title{font-size:clamp(24px,3vw,34px);line-height:1.8;letter-spacing:.01em;margin:0 0 24px;text-wrap:pretty;}
+.budget-options{margin-top:0;}
+.interest-question{padding-bottom:20px;}
+.interest-question .feature-options{margin:0;}
+.interest-question .choice-card{font-size:14px;}
+.photo-credit+.sticky-action{margin-top:20px;}
+.completion-view{text-align:center;max-width:680px;margin:20px auto;}
+.completion-view h1{font-size:clamp(28px,4vw,40px);text-align:center;}
+.completion-view .lead{font-size:15px;line-height:2;}
+.completion-view .receipt{background:none;border-radius:0;padding:16px 0 28px;margin:22px 0 30px;overflow-wrap:normal;}
+.receipt>span{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:10px;}
+.receipt>strong{display:block;font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;font-size:clamp(40px,8vw,64px);font-weight:700;line-height:1.3;letter-spacing:.12em;text-indent:.12em;font-variant-ligatures:none;color:var(--green);}
+.completion-contact{border-top:1px solid var(--line);padding-top:26px;text-align:left;}
+.completion-contact h2{font-size:18px;margin:0 0 14px;}
+.completion-contact p{font-size:13px;line-height:2;margin:12px 0;}
+.completion-contact a{display:inline-block;color:var(--green);font-size:15px;overflow-wrap:anywhere;text-underline-offset:4px;}
+.portrait-return{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px;gap:14px;text-align:center;background:#faf9f2;color:var(--green);}
+.portrait-return svg{width:100px;height:90px;}
+.portrait-return h1{font-size:25px;line-height:1.6;}
+.portrait-return p{font-size:15px;line-height:1.8;}
+.is-portrait-return .app-header,.is-portrait-return .app-footer{display:none;}
+@media(max-width:600px){.question-card{padding:18px 14px;}.question-card h2{font-size:15px;}.gameplay-option{font-size:13px;gap:10px;padding:13px 4px;}.budget-title{font-size:25px;}.completion-view .lead{font-size:14px;}}
 /* Three actions, illustrated, with text that stays readable on a phone. */
 .intro-title{font-size:clamp(26px,3.3vw,38px);line-height:1.65;letter-spacing:.015em;margin:0 0 18px;text-wrap:balance;}
 .intro-mobile-break{display:none;}

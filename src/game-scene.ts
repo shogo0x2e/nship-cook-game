@@ -64,7 +64,7 @@ export function mountGame(container: HTMLElement, options: Options & {landscapeO
     container.classList.add('is-framing');field.classList.add('framing-field');
     $('.setup-overlay')?.remove();
     const overlay=document.createElement('div');overlay.className='game-overlay framing-overlay';
-    overlay.innerHTML=cameraGuide+'<div class="framing-game-feedback">'+framingFeedbackHTML()+'<button class="button secondary small" data-game="prepare-camera" hidden>もう一度カメラを起動</button></div>';
+    overlay.innerHTML=cameraGuide+'<div class="framing-countdown" hidden><span></span><small>もうすぐ はじまるよ</small></div><div class="framing-game-feedback">'+framingFeedbackHTML()+'<button class="button secondary small" data-game="prepare-camera" hidden>もう一度カメラを起動</button></div>';
     field.append(overlay);updateFraming=bindFramingFeedback(overlay,field);
     $('.game-heading .pill')!.textContent='カメラの写りを確認しています';
   }

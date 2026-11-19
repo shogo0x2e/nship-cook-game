@@ -13,7 +13,12 @@ const folder='test-results/recipe-flow';await mkdir(folder,{recursive:true});
 const layout=async page=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'horizontal overflow');
 try{
  for(const [name,viewport] of Object.entries({phone:{width:360,height:800},tablet:{width:820,height:1180},desktop:{width:1440,height:1000}})){
-  const context=await browser.newContext({viewport});const page=await context.newPage();page.setDefaultTimeout(15000);
+  const context=await browser.newContext({viewport,hasTouch:name!=='desktop',isMobile:name!=='desktop'});const page=await context.newPage();page.setDefaultTimeout(15000);
+  const packets=[];let leaveWarnings=0,rejectLeave=false;
+  page.on('request',request=>{if(request.method()==='PUT'&&request.url().includes('/api/experiences/'))packets.push({id:request.url().split('/').at(-1),key:request.headers().authorization.slice(7),payload:request.postDataJSON()});});
+  page.on('dialog',async dialog=>{assert.equal(dialog.type(),'beforeunload');leaveWarnings++;if(rejectLeave){rejectLeave=false;await dialog.dismiss();}else await dialog.accept();});
+  let collidedId=null;
+  if(name==='phone')await page.route('**/api/experiences/*',async route=>{if(!collidedId&&route.request().method()==='PUT'){collidedId=route.request().url().split('/').at(-1);await route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'Experience ID collision'})});}else await route.continue();});
   page.on('pageerror',error=>errors.push(error.message));
   page.on('response',response=>{if(response.url().includes('/experience/assets/')&&!response.ok())failedAssets.push(response.url());});
   await page.addInitScript(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Synthetic denial','NotAllowedError');};});
@@ -31,6 +36,20 @@ try{
   await page.screenshot({path:`${folder}/${name}-intro.png`,fullPage:true});
   await page.locator('[name="age"]').fill(name==='phone'?'5':'16');
   await page.locator('#participant-form button').click();
+  const firstId=await page.locator('main').getAttribute('data-experience-id');
+  assert.match(firstId,/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/);
+  if(name==='desktop'){
+   await page.goBack();await page.locator('main[data-screen="intro"]').waitFor();
+   await page.locator('[name="age"]').fill('17');await page.locator('#participant-form button').click();
+   assert.equal(await page.locator('main').getAttribute('data-experience-id'),firstId);
+   rejectLeave=true;const warning=page.waitForEvent('dialog');
+   await page.evaluate(()=>{setTimeout(()=>{location.href='/legacy.html';},0);});await warning;
+   await page.locator('main[data-screen="camera"]').waitFor();assert.equal(leaveWarnings,1);
+   assert.equal(await page.locator('main').getAttribute('data-experience-id'),firstId);
+   await page.evaluate(()=>{location.hash='done';});await page.locator('main[data-screen="parent-survey"]').waitFor();
+   assert.equal(await page.locator('.receipt').count(),0);
+   await page.goBack();await page.locator('main[data-screen="camera"]').waitFor();
+  }
   await page.locator('[data-action="start-camera-game"]').click();
   if(viewport.height>viewport.width){
    await page.locator('.landscape-notice').waitFor({state:'visible'});
@@ -39,12 +58,20 @@ try{
   await page.getByText('カメラが許可されていません。大人の人に確認してね。',{exact:true}).waitFor();
   await page.locator('[data-action="demo-game"]').click();
   await page.locator('[data-game="start"]').click();await page.locator('[data-game="finish"]').click();
+  if(name==='phone'){
+   try{await page.locator('.portrait-return').waitFor();}catch(error){await page.screenshot({path:`${folder}/${name}-failure.png`,fullPage:true});console.log(await page.evaluate(()=>({stage:document.querySelector('main').dataset.screen,width:innerWidth,height:innerHeight,coarse:matchMedia('(any-pointer: coarse)').matches,text:document.querySelector('main').innerText})));throw error;}
+   await page.screenshot({path:`${folder}/${name}-return-portrait.png`});
+  }else assert.equal(await page.locator('.portrait-return').count(),0);
   await page.setViewportSize(viewport);
   await page.locator('[data-action="go"][data-stage="handoff"]').click();
   await page.locator('[data-action="go"][data-stage="recipes"]').click();
   await page.locator('main[data-screen="recipes"]').waitFor();await layout(page);
   const groupTitles=await page.locator('.inventory-group h2').allTextContents();
+  assert.match(await page.locator('main h1').innerText(),/冷蔵庫にあるもの/);
   assert.deepEqual(groupTitles,['家にあるもので作れる料理','買い足して作る料理']);
+  const missingCounts=await page.locator('#inventory-heading-shopping + p').count();assert.equal(missingCounts,1);
+  const counts=await page.locator('[aria-labelledby="inventory-heading-shopping"] .inventory-badge').allTextContents();
+  const values=counts.map(text=>Number(text.match(/(\d+)品/)[1]));assert.deepEqual(values,[...values].sort((a,b)=>a-b));
   assert.ok(await page.locator('.inventory-source-photo img').evaluate(img=>img.complete&&img.naturalWidth>0));
   assert.ok(await page.locator('.inventory-groups').evaluate(el=>el.children[1].getBoundingClientRect().top>=el.children[0].getBoundingClientRect().bottom));
   for(const group of await page.locator('.inventory-cards').all()){
@@ -60,6 +87,9 @@ try{
    assert.equal(await page.locator('.cooking-overview li').count(),recipe.steps.length+1);
    assert.equal(await page.locator('.cooking-overview li:first-child b').innerText(),'先に準備する');
    assert.equal(await page.locator('.cooking-overview .child-role').count(),1);
+   assert.equal(await page.locator('.recipe-child-role,.recipe-description,.inventory-section-title>span').count(),0);
+   assert.equal(await page.locator('.recipe-meta').count(),1);
+   assert.ok(await page.locator('.photo-credit').evaluate(el=>el.nextElementSibling.classList.contains('sticky-action')&&el.previousElementSibling.querySelector('.cooking-overview')));
    assert.equal(await page.locator('.cooking-overview img').count(),recipe.steps.length+1);
    for(const photo of await page.locator('.cooking-overview img').all()){
     await photo.scrollIntoViewIfNeeded();await photo.evaluate(img=>img.decode());
@@ -75,19 +105,40 @@ try{
   await page.locator('[data-action="open-recipe"][data-recipe="nikujaga"]').click();
   await page.locator('[data-action="show-child"]').click();await layout(page);
   assert.equal(await page.locator('.task-figure figcaption').count(),0);
+  assert.equal(await page.getByText('いまは みるだけで だいじょうぶだよ。',{exact:true}).count(),0);
   await page.locator('[data-action="go"][data-stage="child-survey"]').click();
+  await page.locator('.survey-matrix tbody th').first().waitFor();
+  assert.equal(await page.locator('.survey-matrix tbody th').evaluateAll(rows=>rows.filter(row=>row.textContent.includes('私が幼稚園くらいの年齢だったら')).length),name==='phone'?0:3);
+  assert.equal(await page.getByText('子どもの方へ',{exact:true}).count(),0);
+  if(name!=='phone')assert.equal(await page.locator('.survey-frame').count(),0);
+  await page.screenshot({path:`${folder}/${name}-child-survey.png`,fullPage:true});
   for(const question of ['game_fun','help_intent','daily_feasibility'])await page.locator(`input[name="${question}"][value="6"]`).check();
   await page.locator('textarea[name="comment"]').fill(`demo ${name} child`);
   await layout(page);await page.locator('#survey-form button[type="submit"]').click();
   for(const question of ['task_feasibility','continued_use','meal_decision_ease','child_initiative'])await page.locator(`input[name="${question}"][value="5"]`).check();
   await page.locator('input[name="gameplayStatus"][value="issues_completed"]').check();
   await page.locator('textarea[name="comment"]').fill(`demo ${name} parent`);
+  await page.locator('textarea[name="gameplayComment"]').fill(`demo ${name} gameplay`);
+  assert.equal(await page.getByText('このアプリを、日々の食事づくりで使いたいと思う。',{exact:false}).count(),1);
+  await page.screenshot({path:`${folder}/${name}-parent-survey.png`,fullPage:true});
   await layout(page);await page.locator('#survey-form button[type="submit"]').click();
-  assert.equal(await page.locator('.concept-card').count(),5);await layout(page);
+  await page.locator('.concept-card').first().waitFor();assert.equal(await page.locator('.concept-card').count(),5);await layout(page);
   await page.screenshot({path:`${folder}/${name}-concept.png`,fullPage:true});
   await page.locator('[data-action="market-next"]').click();
   await page.locator('input[name="budgetKind"][value="free"]').check();
+  await page.locator('#market-form button[type="submit"]').click();
+  assert.match(await page.locator('#market-error').innerText(),/気になる機能/);
+  await page.locator('[name="interestedFeatures"][value="none"]').check();
+  await page.locator('[name="interestedFeatures"][value="food_learning"]').check();
+  assert.equal(await page.locator('[name="interestedFeatures"][value="none"]').isChecked(),false);
+  await page.locator('[name="interestedFeatures"][value="game_recipe"]').check();
+  await page.locator('[name="featureComment"]').fill(`demo ${name} features`);
+  await page.goBack();await page.locator('.concept-card').first().waitFor();
+  await page.goForward();await page.locator('#market-form').waitFor();
+  assert.equal(await page.locator('[name="interestedFeatures"][value="food_learning"]').isChecked(),true);
+  assert.equal(await page.locator('[name="featureComment"]').inputValue(),`demo ${name} features`);
   await layout(page);
+  await page.screenshot({path:`${folder}/${name}-budget.png`,fullPage:true});
   if(name==='phone')await context.setOffline(true);
   await page.locator('#market-form button[type="submit"]').click();
   if(name==='phone'){
@@ -95,15 +146,24 @@ try{
    await context.setOffline(false);
   }
   await page.locator('main[data-screen="done"] .receipt').waitFor();await layout(page);
-  const receipt=await page.locator('.receipt').innerText();assert.match(receipt,/MG-/);
-  const stored=await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('cookgame-experience-v1-demo'));return{id:s.sessionId,key:s.key};});
+  const receipt=await page.locator('.receipt strong').innerText();assert.match(receipt,/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/);
+  const stored=packets.findLast(p=>p.payload.complete);assert.equal(stored.id,receipt);
+  if(name==='phone')assert.notEqual(receipt,collidedId);
   const response=await context.request.get(`${base}/api/experiences/${stored.id}`,{headers:{Authorization:`Bearer ${stored.key}`}});
   assert.equal(response.status(),200);const record=await response.json();
   assert.equal(record.complete,true);assert.equal(record.payload.inventoryVersion,inventoryVersion);assert.equal(record.payload.demo,true);
   assert.equal(record.payload.recipeId,'nikujaga');assert.equal(record.payload.child.comment,`demo ${name} child`);assert.equal(record.payload.parent.answers.continued_use,5);
-  assert.equal(record.payload.questionnaireVersion,'poc-2026-11-19-v2');assert.equal(record.payload.parent.answers.meal_decision_ease,5);assert.equal(record.payload.parent.answers.child_initiative,5);assert.equal(record.payload.parent.gameplayStatus,'issues_completed');assert.equal(record.payload.gameInput,'demo');
-  await page.reload();await page.locator('main[data-screen="done"] .receipt').waitFor();assert.equal(await page.locator('.receipt').innerText(),receipt);
+  assert.equal(record.payload.questionnaireVersion,'poc-2026-11-19-v3');assert.equal(record.payload.parent.answers.meal_decision_ease,5);assert.equal(record.payload.parent.answers.child_initiative,5);assert.equal(record.payload.parent.gameplayStatus,'issues_completed');assert.equal(record.payload.gameInput,'demo');
+  assert.equal(record.payload.parent.gameplayComment,`demo ${name} gameplay`);assert.deepEqual(record.payload.serviceFeedback,{interestedFeatures:['game_recipe','food_learning'],comment:`demo ${name} features`});
+  const browserId=await page.evaluate(()=>localStorage.getItem('cookgame-browser-id-v1'));assert.equal(record.payload.deviceId,browserId);
+  const receiptStyle=await page.locator('.receipt strong').evaluate(el=>({font:getComputedStyle(el).fontFamily,size:parseFloat(getComputedStyle(el).fontSize),align:getComputedStyle(el).textAlign}));
+  assert.match(receiptStyle.font,/monospace/);assert.ok(receiptStyle.size>=40);assert.equal(receiptStyle.align,'center');
+  assert.match(decodeURIComponent(await page.locator('a[href^="mailto:"]').getAttribute('href')),new RegExp(receipt));
+  assert.equal(await page.getByText('新しい体験を始める',{exact:true}).count(),0);
   await page.screenshot({path:`${folder}/${name}-saved.png`});
+  const before=leaveWarnings;await page.reload();await page.locator('main[data-screen="intro"]').waitFor();
+  assert.equal(leaveWarnings,before);assert.notEqual(await page.locator('main').getAttribute('data-experience-id'),receipt);
+  assert.equal(await page.locator('[name="age"]').inputValue(),'');assert.equal(await page.evaluate(()=>localStorage.getItem('cookgame-browser-id-v1')),browserId);
   checks.push(`${name}: 12 recipes, all illustrated steps, stock groups/materials, survey and server receipt${name==='phone'?', offline retry':''}`);
   console.log(`PASS ${checks.at(-1)}`);await context.close();
  }

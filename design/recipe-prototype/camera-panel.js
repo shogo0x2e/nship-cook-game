@@ -9,6 +9,7 @@ export const framingFeedbackHTML=()=>`<div class="camera-detection" aria-label="
 export function cameraPanelHTML(){return `<div class="camera-frame camera-auto-frame"><video class="framing-video" autoplay muted playsinline aria-label="鏡映しのカメラプレビュー"></video>${cameraGuide}<p class="framing-hint">顔・両ひじ・両手を画面に入れてください</p></div>${framingFeedbackHTML()}<button type="button" class="primary" data-framing-start>カメラを起動<span aria-hidden="true">→</span></button><p class="camera-error" role="alert"></p>`;}
 export function bindFramingFeedback(container,frame){
  const message=container.querySelector('.framing-message'),progress=container.querySelector('progress');
+ const countdown=container.querySelector('.framing-countdown');
  const lastParts={face:null,elbows:null,hands:null};let lastText='';
  function update(result){
   for(const id of ['face','elbows','hands']){
@@ -21,6 +22,11 @@ export function bindFramingFeedback(container,frame){
   }
   if(progress.hidden===result.status.all)progress.hidden=!result.status.all;
   if(progress.value!==result.progress)progress.value=result.progress;
+  if(countdown){
+   countdown.hidden=!result.status.all;
+   const text=String(Math.max(1,Math.ceil((1-result.progress)*2)));
+   if(countdown.firstElementChild.textContent!==text)countdown.firstElementChild.textContent=text;
+  }
   const missing=[['face','顔'],['elbows','両ひじ'],['hands','両手']].filter(([id])=>!result.status[id]).map(([,label])=>label);
   const next=result.status.all?`そのまま、あと${Math.max(1,Math.ceil((1-result.progress)*2))}秒で始まります。`:`${missing.join('・')}が映るように、少し離れてください。`;
   if(next!==lastText){message.textContent=next;lastText=next;}

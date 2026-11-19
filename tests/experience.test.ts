@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { AccountStore } from '../server/account-store.ts';
 import { ExperienceStore } from '../server/experience-store.ts';
 import { createSessionServer } from '../server/server.ts';
-import { questionnaireVersion, legacyQuestionnaireVersion, recipeVersion, conceptVersion, legacyConceptVersion, inventoryVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
-const payload=(complete=false):ExperiencePayload=>({questionnaireVersion,recipeVersion,conceptVersion,sequence:1,age:8,demo:true,stage:complete?'done':'child-survey',selectedIngredients:['rice','carrot'],evidence:{rice:{offered:1,caught:1},carrot:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:7,help_intent:6,daily_feasibility:4},comment:'こどもの感想'},parent:{answers:complete?{task_feasibility:6,continued_use:5,meal_decision_ease:4,child_initiative:6}:{},comment:'',gameplayStatus:complete?'smooth':null},payment:complete?{kind:'free',maxMonthlyYen:0}:null,complete});
+import { questionnaireVersion, previousQuestionnaireVersion, legacyQuestionnaireVersion, recipeVersion, conceptVersion, previousConceptVersion, legacyConceptVersion, inventoryVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
+const payload=(complete=false):ExperiencePayload=>({questionnaireVersion,recipeVersion,conceptVersion,deviceId:randomUUID(),sequence:1,age:8,demo:true,stage:complete?'done':'child-survey',selectedIngredients:['rice','carrot'],evidence:{rice:{offered:1,caught:1},carrot:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:7,help_intent:6,daily_feasibility:4},comment:'こどもの感想'},parent:{answers:complete?{task_feasibility:6,continued_use:5,meal_decision_ease:4,child_initiative:6}:{},comment:'',gameplayStatus:complete?'smooth':null,gameplayComment:'カメラの確認'},serviceFeedback:{interestedFeatures:complete?['food_learning']:[],comment:'機能への意見'},payment:complete?{kind:'free',maxMonthlyYen:0}:null,complete});
 const status=(code:number)=>(error:unknown)=>error instanceof Error&&'status' in error&&error.status===code;
 test('anonymous response is durable, private, idempotent, and final answers cannot be replaced by delayed drafts',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'cookgame-survey-'));const path=join(dir,'survey.sqlite');const id=randomUUID(),key=randomBytes(32).toString('hex');let accounts=new AccountStore(path);let store=new ExperienceStore(accounts.db);
@@ -89,7 +89,50 @@ test('operator exports exclude demo/drafts and safely preserve optional comments
   const summary=JSON.parse(execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path],{encoding:'utf8'}));
   assert.equal(summary.count,1);assert.equal(summary.byInventoryVersion[inventoryVersion],1);assert.equal(summary.paidMaxMonthlyYen.median,500);assert.equal(summary.likert['young-current-experience'].scores.game_fun.n,1);
   assert.equal(summary.byGameplayStatus.smooth,1);assert.equal(summary.likert['young-current-experience'].scores.meal_decision_ease.n,1);assert.equal(summary.likert['young-current-experience'].scores.child_initiative.n,1);
+  assert.equal(summary.featureInterests.food_learning,1);assert.equal(summary.browserIdentifiers.distinctBrowsers,1);
   const csv=join(dir,'answers.csv');execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path,'--format','csv','--out',csv]);
-  const text=await readFile(csv,'utf8');assert.ok(text.startsWith('\ufeff'));assert.ok(text.includes("'=HYPERLINK"));assert.equal((await stat(csv)).mode&0o777,0o600);
+  const text=await readFile(csv,'utf8');assert.ok(text.startsWith('\ufeff'));assert.ok(text.includes("'=HYPERLINK"));assert.ok(text.includes('food_learning'));assert.ok(text.includes('カメラの確認'));assert.ok(text.includes(complete.deviceId!));assert.equal((await stat(csv)).mode&0o777,0o600);
  }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('six-character ID collisions preserve existing answers, while a retry under a fresh ID saves the same browser',()=>{
+ const accounts=new AccountStore();const store=new ExperienceStore(accounts.db);
+ try{
+  const firstKey=randomBytes(32).toString('hex'),secondKey=randomBytes(32).toString('hex');
+  const first=payload(true),second={...payload(true),deviceId:first.deviceId};
+  assert.equal(store.save('7K3M9R',firstKey,first).receipt,'7K3M9R');
+  assert.throws(()=>store.save('7K3M9R',secondKey,second),error=>status(409)(error)&&error instanceof Error&&error.message==='Experience ID collision');
+  assert.deepEqual(store.get('7K3M9R',firstKey).payload,first);
+  assert.throws(()=>store.get('7K3M9R',secondKey),status(401));
+  assert.equal(store.save('8K3M9R',secondKey,second).receipt,'8K3M9R');
+  assert.equal(accounts.db.prepare('SELECT COUNT(*) n FROM experience_responses WHERE device_id=?').get(first.deviceId!)?.n,2);
+ }finally{accounts.close();}
+});
+
+test('v3 requires a feature selection and validates exclusive none, browser ID and both new free-text fields',()=>{
+ const accounts=new AccountStore();const store=new ExperienceStore(accounts.db);const key=randomBytes(32).toString('hex');
+ try{
+  for(const feedback of [undefined,{interestedFeatures:[],comment:''},{interestedFeatures:['none','food_learning'],comment:''},{interestedFeatures:['unknown'],comment:''},{interestedFeatures:['food_learning','food_learning'],comment:''},{interestedFeatures:['none'],comment:'x'.repeat(3001)}])assert.throws(()=>store.save(randomUUID(),key,{...payload(true),serviceFeedback:feedback}),status(400));
+  assert.throws(()=>store.save(randomUUID(),key,{...payload(),deviceId:'not-a-uuid'}),status(400));
+  assert.throws(()=>store.save(randomUUID(),key,{...payload(true),parent:{...payload(true).parent,gameplayComment:'x'.repeat(3001)}}),status(400));
+  assert.equal(store.save('9K3M9R',key,{...payload(true),serviceFeedback:{interestedFeatures:['none'],comment:''}}).complete,true);
+ }finally{accounts.close();}
+});
+
+test('old SQLite tables gain a browser index without modifying completed v1/v2 bodies, receipts or retry hashes',()=>{
+ const accounts=new AccountStore();
+ try{
+  accounts.db.exec(`CREATE TABLE experience_responses(id TEXT PRIMARY KEY,token_hash TEXT NOT NULL,sequence INTEGER NOT NULL,payload_hash TEXT NOT NULL,payload TEXT NOT NULL,complete INTEGER NOT NULL DEFAULT 0,demo INTEGER NOT NULL,age INTEGER NOT NULL,child_mode TEXT NOT NULL,recipe_id TEXT,questionnaire_version TEXT NOT NULL,receipt TEXT UNIQUE,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,completed_at TEXT)`);
+  let store=new ExperienceStore(accounts.db);const key=randomBytes(32).toString('hex');
+  for(const version of [legacyQuestionnaireVersion,previousQuestionnaireVersion] as const){
+   const old=payload(true);old.questionnaireVersion=version;old.conceptVersion=version===legacyQuestionnaireVersion?legacyConceptVersion:previousConceptVersion;
+   delete old.deviceId;delete old.serviceFeedback;delete old.parent.gameplayComment;
+   if(version===legacyQuestionnaireVersion)old.parent={answers:{task_feasibility:6,continued_use:5},comment:''};
+   const id=randomUUID(),ack=store.save(id,key,old);const hash=accounts.db.prepare('SELECT payload_hash FROM experience_responses WHERE id=?').get(id)?.payload_hash;
+   store=new ExperienceStore(accounts.db);
+   assert.equal(store.save(id,key,old).receipt,ack.receipt);assert.deepEqual(store.get(id,key).payload,old);
+   assert.equal(accounts.db.prepare('SELECT payload_hash FROM experience_responses WHERE id=?').get(id)?.payload_hash,hash);
+  }
+  assert.ok(accounts.db.prepare('PRAGMA table_info(experience_responses)').all().some(c=>c.name==='device_id'));
+ }finally{accounts.close();}
 });

@@ -1,24 +1,24 @@
-export const questionnaireVersion = 'poc-2026-11-19-v2';
+export const questionnaireVersion = 'poc-2026-11-19-v3';
 export const scale = ['全くそう思わない', 'そう思わない', 'あまりそう思わない', 'どちらともいえない', 'ややそう思う', 'そう思う', '非常にそう思う'];
 export const youngScaleLines = [['ぜんぜん','おもわない'], ['おもわない'], ['あまり','おもわない'], ['どちらでも','ない'], ['すこし','おもう'], ['おもう'], ['とても','おもう']];
 export const youngScale = ['ぜんぜん おもわない', 'おもわない', 'あまり おもわない', 'どちらでもない', 'すこし おもう', 'おもう', 'とても おもう'];
 export const questions = {
   child: [
-    { id: 'game_fun', text: 'このゲームで遊ぶのは楽しいと思う。', youngText: 'ゲームは たのしかった。' },
-    { id: 'help_intent', text: '表示されたお手伝いを、やってみたいと思う。', youngText: 'この おてつだいを やってみたい。' },
-    { id: 'daily_feasibility', text: 'このゲームなら、毎日遊び続けられそうだと思う。', youngText: 'このゲームなら、まいにちでも あそべそう。' },
+    { id: 'game_fun', text: '私が幼稚園くらいの年齢だったら、このゲームで遊ぶのは楽しいと思う。', youngText: 'ゲームは たのしかった。' },
+    { id: 'help_intent', text: '私が幼稚園くらいの年齢だったら、表示されたお手伝いをやってみたいと思う。', youngText: 'この おてつだいを やってみたい。' },
+    { id: 'daily_feasibility', text: '私が幼稚園くらいの年齢だったら、このゲームで毎日遊び続けられそうだと思う。', youngText: 'このゲームなら、まいにちでも あそべそう。' },
   ],
   parent: [
     { id: 'task_feasibility', text: '提案された分担なら、子どもにお手伝いを任せられそうだと思う。' },
-    { id: 'continued_use', text: 'このプロダクトを、日々の食事づくりで使いたいと思う。' },
-    { id: 'meal_decision_ease', text: '家にある食材から、作る料理を決めやすくなりそうだと思う。' },
-    { id: 'child_initiative', text: '子どもが自分から料理を手伝いたくなりそうだと思う。' },
+    { id: 'continued_use', text: 'このアプリを、日々の食事づくりで使いたいと思う。' },
+    { id: 'meal_decision_ease', text: 'このアプリによって、日々の献立を決めやすくなると思う。' },
+    { id: 'child_initiative', text: 'このアプリによって、子どもが自分から料理を手伝ってくれると思う。' },
   ],
 };
 export const frames = {
-  child: '幼稚園くらいの頃の自分を思い浮かべてください。当時、このプロダクトがあった場合について回答してください。',
+  child: '',
   young: 'いま あそんだ ゲームと、みた おてつだいについて おしえてね。',
-  parent: '今回体験したゲームとレシピ・お手伝いの提案について、家庭で使う場面を想像して回答してください。',
+  parent: '',
 };
 export const gameplayOptions = [
   ['smooth', '問題なくプレイできた'],
@@ -30,11 +30,12 @@ export const gameplayOptions = [
 ];
 const gameplayQuestion = { id: 'gameplayStatus', text: '今回、ゲームはどの程度プレイできましたか。' };
 export const surveyQuestionCount = role => questions[role].length + (role === 'parent' ? 1 : 0);
-export const freshSurvey = () => ({ answers: {}, comment: '', gameplayStatus: '', submittedAt: null });
+export const freshSurvey = () => ({ answers: {}, comment: '', gameplayStatus: '', gameplayComment: '', submittedAt: null });
 export function restoreSurvey(role, saved) {
   const result = freshSurvey();
   if (!saved || typeof saved !== 'object') return result;
   result.comment = typeof saved.comment === 'string' ? saved.comment.slice(0, 3000) : '';
+  result.gameplayComment = typeof saved.gameplayComment === 'string' ? saved.gameplayComment.slice(0, 3000) : '';
   result.submittedAt = typeof saved.submittedAt === 'string' ? saved.submittedAt : null;
   if (role === 'parent' && gameplayOptions.some(([value]) => value === saved.gameplayStatus)) result.gameplayStatus = saved.gameplayStatus;
   for (const question of questions[role]) {
@@ -66,13 +67,12 @@ export function surveyTable(role, response = freshSurvey(), readOnly = false, yo
 export function surveyForm(role, response, young = false) {
   const labels = young ? youngScale : scale;
   return `<form id="survey-form" data-survey-role="${role}" class="survey-form ${young ? 'young-survey' : ''}">
-    <p class="survey-frame">${frames[young ? 'young' : role]}</p>
+    ${young ? `<p class="survey-frame">${frames.young}</p>` : ''}
     ${young ? '<p class="plain-note">おとなの ひとと よんでも いいよ。おとなの方は、お子さん自身の答えを選んでください。</p>' : ''}
     <details class="scale-key"><summary>${young ? '1〜7の こたえを みる' : '7段階の選択肢を確認'}</summary><ol>${labels.map((label, index) => `<li>${index + 1}：${label}</li>`).join('')}</ol></details>
-    <p class="plain-note">${young ? 'ひとつずつ えらんでね。' : '各設問で1つ選んでください。'}</p>
     <div class="survey-container">${surveyTable(role, response, false, young)}</div>
     <label class="survey-comment">${young ? 'おもったことが あれば おしえてね（かかなくても いいよ）' : 'そう答えた理由や、気になった点を教えてください（任意）'}<textarea name="comment" rows="4" maxlength="3000">${esc(response.comment)}</textarea></label>
-    ${role === 'parent' ? `<fieldset class="gameplay-question" data-question-row="gameplayStatus"><legend>${gameplayQuestion.text}</legend><p class="plain-note">ゲームの動作状況について、最も近いものを1つ選んでください。</p><div class="feature-options">${gameplayOptions.map(([value,label]) => `<label class="choice-card"><input type="radio" name="gameplayStatus" value="${value}" ${response.gameplayStatus === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>` : ''}
+    ${role === 'parent' ? `<section class="question-card gameplay-question" data-question-row="gameplayStatus" aria-labelledby="gameplay-question-title"><h2 id="gameplay-question-title"><span class="question-number">5</span>${gameplayQuestion.text}</h2><div class="gameplay-options">${gameplayOptions.map(([value,label]) => `<label class="gameplay-option"><input type="radio" name="gameplayStatus" value="${value}" ${response.gameplayStatus === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></section><label class="survey-comment">ゲームの動作や、困ったことがあれば教えてください（任意）<textarea name="gameplayComment" rows="3" maxlength="3000">${esc(response.gameplayComment)}</textarea></label>` : ''}
     <p id="survey-error" class="survey-error" role="alert"></p><p id="survey-progress" class="selection-count" aria-live="polite">${young ? 'こたえた かず' : '回答済み'} ${surveyQuestionCount(role) - missingQuestions(role, response).length} / ${surveyQuestionCount(role)}</p>
     <button type="submit" class="primary">${role === 'child' ? young ? 'こたえて おやに わたす' : '回答を保存して親に渡す' : '今後の機能案と料金について回答する'}<span aria-hidden="true">→</span></button>
     </form>`;

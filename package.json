@@ -17,7 +17,8 @@
     "test:challenge": "node tests/challenge-e2e.mjs"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "1.2.3"
+    "@mediapipe/tasks-vision": "1.2.3",
+    "nanoid": "6.0.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
