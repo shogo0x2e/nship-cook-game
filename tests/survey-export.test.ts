@@ -25,9 +25,11 @@ test('operator snapshot is authenticated and read-only, includes only completed 
   const row=Object.fromEntries(result.columns.map((column:{id:string},index:number)=>[column.id,result.rows[0][index]]));
   assert.equal(row.receipt,'7K3M9R');
   const receiptIndex=result.columns.findIndex((c:{id:string})=>c.id==='receipt');assert.match(oldReceipt!,/^MG-/);assert.equal(result.rows.find((r:string[])=>r[0]===oldId)[receiptIndex],oldReceipt);
-  assert.equal(row.child_play_frequency,'never');assert.equal(row.daily_feasibility,'');assert.equal(row.max_monthly_yen,500);assert.equal(row.child_comment,'=IMPORTXML("untrusted")');
+  assert.equal(row.child_play_frequency,'never');assert.equal(row.daily_feasibility,undefined);assert.ok(!result.columns.some((c:{id:string})=>['daily_feasibility','meal_decision_ease'].includes(c.id)));assert.equal(row.max_monthly_yen,500);assert.equal(row.child_comment,'=IMPORTXML("untrusted")');
   assert.ok(!JSON.stringify(result).includes(respondentKey));assert.ok(!JSON.stringify(result).includes(key));assert.ok(!/token_hash|password_hash|salt/.test(JSON.stringify(result)));
   assert.equal(app.experiences.db.prepare('SELECT COUNT(*) n FROM experience_responses').get()?.n,4);
+  app.experiences.db.prepare('DELETE FROM experience_responses').run();
+  const empty=await(await fetch(url,{headers})).json();assert.equal(empty.count,0);assert.deepEqual(empty.rows,[]);assert.equal(empty.columns.length,30);
  }finally{app.server.closeAllConnections();await new Promise<void>(resolve=>app.server.close(()=>resolve()));}
  const disabled=await createSessionServer({port:0});await disabled.listen();
  try{assert.equal((await fetch(`http://127.0.0.1:${(disabled.server.address() as {port:number}).port}/api/operator/survey-snapshot`,{headers:{Authorization:'Bearer '+key}})).status,404);}
@@ -55,4 +57,15 @@ test('GAS setup replaces only its own trigger and uses the 30-minute interval',(
  const context=vm.createContext({ScriptApp:{getProjectTriggers:()=>['syncCookgameResponses','unrelated'].map(name=>({getHandlerFunction:()=>name})),deleteTrigger:(t:{getHandlerFunction:()=>string})=>deleted.push(t.getHandlerFunction()),newTrigger:(name:string)=>{assert.equal(name,'syncCookgameResponses');return{timeBased:()=>({everyMinutes:(n:number)=>({create:()=>created.push(n)})})};}},SpreadsheetApp:{getActiveSpreadsheet:()=>({toast:()=>{}})}});
  vm.runInContext(gas+'\nsyncCookgameResponses = function() {}; installCookgameSync();',context);
  assert.deepEqual(deleted,['syncCookgameResponses']);assert.deepEqual(created,[30]);
+});
+
+
+test('GAS empty snapshot removes stale response rows and retired columns',()=>{
+ const cleared:number[][]=[],writes:{range:number[];rows:unknown}[]=[];
+ const sheet={getLastRow:()=>6,getLastColumn:()=>32,getMaxRows:()=>1000,getMaxColumns:()=>32,setFrozenRows(){},setColumnWidths(){},getFilter:()=>({remove(){}}),getRange:(...range:number[])=>{
+  const chain={setValues:(rows:unknown)=>{writes.push({range,rows});return chain;},clearContent:()=>{cleared.push(range);return chain;},setFontWeight:()=>chain,setBackground:()=>chain,setWrap:()=>chain,setVerticalAlignment:()=>chain,setNote:()=>chain,createFilter:()=>chain};return chain;
+ }};
+ const context=vm.createContext({book:{getSheetByName:()=>sheet}});vm.runInContext(gas,context);
+ vm.runInContext("writeCookgameTab_(book,'回答一覧',[Array.from({length:30},()=> '見出し')])",context);
+ assert.deepEqual(writes[0].range,[1,1,1,30]);assert.deepEqual(cleared,[[2,1,5,32],[1,31,6,2]]);
 });

@@ -3,7 +3,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {chromium} from 'playwright';
 import {createSessionServer} from '../server/server.ts';
 import data from '../src/experience-data.json' with {type:'json'};
-import {inventoryVersion} from '../src/experience-protocol.ts';
+import {inventoryVersion,questionnaireVersion} from '../src/experience-protocol.ts';
 import {features} from '../design/recipe-prototype/market.js';
 
 const app=await createSessionServer({port:0});await app.listen();
@@ -195,7 +195,7 @@ try{
   assert.equal(response.status(),200);const record=await response.json();
   assert.equal(record.complete,true);assert.equal(record.payload.inventoryVersion,inventoryVersion);assert.equal(record.payload.demo,true);
   assert.equal(record.payload.recipeId,'nikujaga');assert.equal(record.payload.child.comment,`demo ${name} child`);assert.equal(record.payload.parent.answers.continued_use,5);
-  assert.equal(record.payload.questionnaireVersion,'poc-2026-11-19-v5');assert.equal(record.payload.parent.answers.meal_preparation_ease,5);assert.equal(record.payload.parent.answers.child_initiative,5);assert.equal(record.payload.parent.gameplayStatus,'issues_completed');assert.equal(record.payload.gameInput,'demo');
+  assert.equal(record.payload.questionnaireVersion,questionnaireVersion);assert.equal(record.payload.parent.answers.meal_preparation_ease,5);assert.equal(record.payload.parent.answers.child_initiative,5);assert.equal(record.payload.parent.gameplayStatus,'issues_completed');assert.equal(record.payload.gameInput,'demo');
   assert.equal(record.payload.child.playFrequency,playFrequency);assert.equal(record.payload.child.answers.daily_feasibility,undefined);assert.equal(record.payload.parent.employmentStatus,employmentStatus);assert.equal(record.payload.parent.gameplayComment,`demo ${name} gameplay`);assert.deepEqual(record.payload.serviceFeedback,{interestedFeatures:['game_recipe','food_learning'],comment:`demo ${name} features`});
   const browserId=await page.evaluate(()=>localStorage.getItem('cookgame-browser-id-v1'));assert.equal(record.payload.deviceId,browserId);
   const receiptStyle=await page.locator('.receipt strong').evaluate(el=>({font:getComputedStyle(el).fontFamily,size:parseFloat(getComputedStyle(el).fontSize),align:getComputedStyle(el).textAlign}));

@@ -1,4 +1,4 @@
-import type { ExperiencePayload } from './experience-protocol.ts';
+import {questionnaireVersion, type ExperiencePayload} from './experience-protocol.ts';
 // @ts-expect-error Shared with the standalone HTML prototype.
 import { newExperienceId } from '../design/recipe-prototype/experience-id.js';
 export type Packet={id:string;key:string;payload:ExperiencePayload};
@@ -9,8 +9,9 @@ function load():Record<string,Packet>{
   const value=JSON.parse(localStorage.getItem(queueKey)??'{}');
   if(!value||typeof value!=='object'||Array.isArray(value))return {};
   const result:Record<string,Packet>={};
-  // Migrate UUID-keyed deliveries too. Private-token keys keep colliding IDs separate.
+  // Private-token keys keep colliding IDs separate.
   for(const p of Object.values(value) as Packet[]){
+   if(p?.payload?.questionnaireVersion!==questionnaireVersion)continue;
    if(!p||typeof p.id!=='string'||!/^[a-f0-9]{64}$/.test(p.key)||!Number.isInteger(p.payload?.sequence))continue;
    if(!result[p.key]||result[p.key].payload.sequence<p.payload.sequence)result[p.key]=p;
   }
@@ -19,6 +20,7 @@ function load():Record<string,Packet>{
 }
 const store=()=>{try{localStorage.setItem(queueKey,JSON.stringify(queue));}catch{/* Online delivery remains usable without storage. */}};
 const queue=load();
+store(); // Drop discarded test-era deliveries from persistent storage as well.
 const aliases=new Map<string,string>();
 const active=new Map<string,Promise<Acknowledgement>>();
 let flushing:Promise<void>|null=null;

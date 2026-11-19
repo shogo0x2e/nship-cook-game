@@ -1,4 +1,4 @@
-export const questionnaireVersion = 'poc-2026-11-19-v5';
+export const questionnaireVersion = 'poc-2026-11-20-v1';
 export const scale = ['全くそう思わない', 'そう思わない', 'あまりそう思わない', 'どちらともいえない', 'ややそう思う', 'そう思う', '非常にそう思う'];
 export const youngScaleLines = [['ぜんぜん','おもわない'], ['おもわない'], ['あまり','おもわない'], ['どちらでも','ない'], ['すこし','おもう'], ['おもう'], ['とても','おもう']];
 export const youngScale = ['ぜんぜん おもわない', 'おもわない', 'あまり おもわない', 'どちらでもない', 'すこし おもう', 'おもう', 'とても おもう'];

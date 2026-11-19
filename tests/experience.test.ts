@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { AccountStore } from '../server/account-store.ts';
 import { ExperienceStore } from '../server/experience-store.ts';
 import { createSessionServer } from '../server/server.ts';
-import { questionnaireVersion, previousQuestionnaireVersion, v3QuestionnaireVersion, childPlayFrequencies, legacyQuestionnaireVersion, recipeVersion, conceptVersion, previousConceptVersion, v3ConceptVersion, legacyConceptVersion, inventoryVersion, legacyInventoryVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
+import { questionnaireVersion, childPlayFrequencies, recipeVersion, conceptVersion, inventoryVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
 const payload=(complete=false):ExperiencePayload=>({questionnaireVersion,recipeVersion,conceptVersion,deviceId:randomUUID(),sequence:1,age:8,demo:true,stage:complete?'done':'child-survey',selectedIngredients:['rice','carrot'],evidence:{rice:{offered:1,caught:1},carrot:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:7,help_intent:6},playFrequency:complete?'two_to_three_days':null,comment:'こどもの感想'},parent:{answers:complete?{task_feasibility:6,continued_use:5,meal_preparation_ease:4,child_initiative:6}:{},comment:'',gameplayStatus:complete?'smooth':null,gameplayComment:'カメラの確認',employmentStatus:complete?'yes':null},serviceFeedback:{interestedFeatures:complete?['food_learning']:[],comment:'機能への意見'},payment:complete?{kind:'free',maxMonthlyYen:0}:null,complete});
 const status=(code:number)=>(error:unknown)=>error instanceof Error&&'status' in error&&error.status===code;
 test('anonymous response is durable, private, idempotent, and final answers cannot be replaced by delayed drafts',async()=>{
@@ -34,21 +34,11 @@ test('response validation rejects media, unknown scores, mismatched versions and
   const noUse=store.save(randomUUID(),key,{...payload(true),payment:{kind:'no_use',maxMonthlyYen:null}});assert.equal(noUse.complete,true);
  }finally{accounts.close();}
 });
-test('inventory presentation metadata is saved without invalidating queued answers from earlier releases',()=>{
- const accounts=new AccountStore();const store=new ExperienceStore(accounts.db);
+test('inventory metadata accepts the current sample and rejects retired stock versions',()=>{
+ const accounts=new AccountStore();const store=new ExperienceStore(accounts.db);const key=randomBytes(32).toString('hex');
  try{
-  const key=randomBytes(32).toString('hex'),oldId=randomUUID(),newId=randomUUID();
-  const old=payload(true),current={...payload(true),inventoryVersion};
-  const oldAck=store.save(oldId,key,old);
-  assert.equal(store.save(oldId,key,old).receipt,oldAck.receipt);
-  assert.deepEqual(store.get(oldId,key).payload,old);
-  store.save(newId,key,current);
-  assert.deepEqual(store.get(newId,key).payload,current);
-  const previousStockId=randomUUID(),previousStock={...payload(true),inventoryVersion:legacyInventoryVersion};
-  const previousStockAck=store.save(previousStockId,key,previousStock);
-  assert.equal(store.save(previousStockId,key,previousStock).receipt,previousStockAck.receipt);
-  assert.deepEqual(store.get(previousStockId,key).payload,previousStock);
-  assert.throws(()=>store.save(randomUUID(),key,{...current,inventoryVersion:'unrecognized'}),status(400));
+  const id=randomUUID(),current={...payload(true),inventoryVersion};store.save(id,key,current);assert.deepEqual(store.get(id,key).payload,current);
+  for(const version of ['household-stock-2026-11-19-v1','unrecognized'])assert.throws(()=>store.save(randomUUID(),key,{...current,inventoryVersion:version}),status(400));
  }finally{accounts.close();}
 });
 test('public survey API requires a private experience key and same-origin writes; no public listing',async()=>{
@@ -65,19 +55,13 @@ test('public survey API requires a private experience key and same-origin writes
  }finally{app.server.closeAllConnections();await new Promise<void>(resolve=>app.server.close(()=>resolve()));}
 });
 
-test('v2 requires the new questions and playability while queued v1 responses retain their original body and version',()=>{
+test('retired survey versions cannot recreate deleted test responses',()=>{
  const accounts=new AccountStore();const store=new ExperienceStore(accounts.db);const key=randomBytes(32).toString('hex');
  try{
-  const old:ExperiencePayload={...payload(true),questionnaireVersion:legacyQuestionnaireVersion,conceptVersion:legacyConceptVersion,child:{answers:{game_fun:7,help_intent:6,daily_feasibility:4},comment:''},parent:{answers:{task_feasibility:6,continued_use:5},comment:'旧版の保留回答'}};
-  const oldId=randomUUID();const ack=store.save(oldId,key,old);
-  assert.deepEqual(store.get(oldId,key).payload,old);assert.equal(store.save(oldId,key,old).receipt,ack.receipt);
-  assert.equal(accounts.db.prepare('SELECT questionnaire_version FROM experience_responses WHERE id=?').get(oldId)?.questionnaire_version,legacyQuestionnaireVersion);
-  assert.throws(()=>store.save(randomUUID(),key,{...old,questionnaireVersion}),status(400));
-  const missing={...payload(true),parent:{...payload(true).parent,gameplayStatus:null}};
-  assert.throws(()=>store.save(randomUUID(),key,missing),status(400));
-  assert.throws(()=>store.save(randomUUID(),key,{...payload(true),parent:{...payload(true).parent,gameplayStatus:'unknown'}}),status(400));
-  const failed={...payload(true),gameInput:'camera',parent:{...payload(true).parent,gameplayStatus:'issues_unable'}};
-  const id=randomUUID();assert.equal(store.save(id,key,failed).complete,true);assert.deepEqual(store.get(id,key).payload,failed);
+  for(const version of ['poc-2026-11-19-v1','poc-2026-11-19-v2','poc-2026-11-19-v3','poc-2026-11-19-v4','poc-2026-11-19-v5'])assert.throws(()=>store.save(randomUUID(),key,{...payload(true),questionnaireVersion:version}),status(409));
+  assert.equal(accounts.db.prepare('SELECT COUNT(*) n FROM experience_responses').get()?.n,0);
+  assert.throws(()=>store.save(randomUUID(),key,{...payload(true),parent:{...payload(true).parent,gameplayStatus:null}}),status(400));
+  const failed={...payload(true),parent:{...payload(true).parent,gameplayStatus:'issues_unable'}};assert.equal(store.save(randomUUID(),key,failed).complete,true);
  }finally{accounts.close();}
 });
 
@@ -92,10 +76,10 @@ test('operator exports exclude demo/drafts and safely preserve optional comments
   const draft=payload();draft.demo=false;store.save(randomUUID(),randomBytes(32).toString('hex'),draft);accounts.close();
   const summary=JSON.parse(execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path],{encoding:'utf8'}));
   assert.equal(summary.count,1);assert.equal(summary.byInventoryVersion[inventoryVersion],1);assert.equal(summary.paidMaxMonthlyYen.median,500);assert.equal(summary.likert['young-current-experience'].scores.game_fun.n,1);
-  assert.equal(summary.byChildPlayFrequency.two_to_three_days,1);assert.equal(summary.likert['young-current-experience'].scores.daily_feasibility.n,0);assert.equal(summary.byGameplayStatus.smooth,1);assert.equal(summary.likert['young-current-experience'].scores.meal_preparation_ease.n,1);assert.equal(summary.likert['young-current-experience'].scores.child_initiative.n,1);
+  assert.equal(summary.byChildPlayFrequency.two_to_three_days,1);assert.equal(summary.likert['young-current-experience'].scores.daily_feasibility,undefined);assert.equal(summary.likert['young-current-experience'].scores.meal_decision_ease,undefined);assert.equal(summary.byGameplayStatus.smooth,1);assert.equal(summary.likert['young-current-experience'].scores.meal_preparation_ease.n,1);assert.equal(summary.likert['young-current-experience'].scores.child_initiative.n,1);
   assert.equal(summary.byEmploymentStatus.yes,1);assert.equal(summary.featureInterests.food_learning,1);assert.equal(summary.browserIdentifiers.distinctBrowsers,1);
   const csv=join(dir,'answers.csv');execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path,'--format','csv','--out',csv]);
-  const text=await readFile(csv,'utf8');assert.ok(text.startsWith('\ufeff'));assert.ok(text.includes("'=HYPERLINK"));assert.ok(text.includes('food_learning'));assert.ok(text.includes('child_play_frequency'));assert.ok(text.includes('two_to_three_days'));assert.ok(text.includes('カメラの確認'));assert.ok(text.includes(complete.deviceId!));assert.equal((await stat(csv)).mode&0o777,0o600);
+  const text=await readFile(csv,'utf8');assert.ok(text.startsWith('\ufeff'));assert.ok(text.includes("'=HYPERLINK"));assert.ok(text.includes('food_learning'));assert.ok(text.includes('child_play_frequency'));assert.ok(!text.includes('daily_feasibility'));assert.ok(!text.includes('meal_decision_ease'));assert.ok(text.includes('two_to_three_days'));assert.ok(text.includes('カメラの確認'));assert.ok(text.includes(complete.deviceId!));assert.equal((await stat(csv)).mode&0o777,0o600);
  }finally{await rm(dir,{recursive:true,force:true});}
 });
 
@@ -120,25 +104,6 @@ test('current survey requires a feature selection and validates exclusive none, 
   assert.throws(()=>store.save(randomUUID(),key,{...payload(),deviceId:'not-a-uuid'}),status(400));
   assert.throws(()=>store.save(randomUUID(),key,{...payload(true),parent:{...payload(true).parent,gameplayComment:'x'.repeat(3001)}}),status(400));
   assert.equal(store.save('9K3M9R',key,{...payload(true),serviceFeedback:{interestedFeatures:['none'],comment:''}}).complete,true);
- }finally{accounts.close();}
-});
-
-test('old SQLite tables gain a browser index without modifying completed v1/v2/v3 bodies, receipts or retry hashes',()=>{
- const accounts=new AccountStore();
- try{
-  accounts.db.exec(`CREATE TABLE experience_responses(id TEXT PRIMARY KEY,token_hash TEXT NOT NULL,sequence INTEGER NOT NULL,payload_hash TEXT NOT NULL,payload TEXT NOT NULL,complete INTEGER NOT NULL DEFAULT 0,demo INTEGER NOT NULL,age INTEGER NOT NULL,child_mode TEXT NOT NULL,recipe_id TEXT,questionnaire_version TEXT NOT NULL,receipt TEXT UNIQUE,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,completed_at TEXT)`);
-  let store=new ExperienceStore(accounts.db);const key=randomBytes(32).toString('hex');
-  for(const version of [legacyQuestionnaireVersion,previousQuestionnaireVersion,v3QuestionnaireVersion] as const){
-   const old=payload(true);old.child={answers:{game_fun:7,help_intent:6,daily_feasibility:4},comment:''};old.questionnaireVersion=version;old.conceptVersion=version===legacyQuestionnaireVersion?legacyConceptVersion:version===v3QuestionnaireVersion?v3ConceptVersion:previousConceptVersion;
-   if(version!==v3QuestionnaireVersion){delete old.deviceId;delete old.serviceFeedback;delete old.parent.gameplayComment;}
-   delete old.parent.employmentStatus;old.parent.answers.meal_decision_ease=old.parent.answers.meal_preparation_ease;delete old.parent.answers.meal_preparation_ease;
-   if(version===legacyQuestionnaireVersion)old.parent={answers:{task_feasibility:6,continued_use:5},comment:''};
-   const id=randomUUID(),ack=store.save(id,key,old);const hash=accounts.db.prepare('SELECT payload_hash FROM experience_responses WHERE id=?').get(id)?.payload_hash;
-   store=new ExperienceStore(accounts.db);
-   assert.equal(store.save(id,key,old).receipt,ack.receipt);assert.deepEqual(store.get(id,key).payload,old);
-   assert.equal(accounts.db.prepare('SELECT payload_hash FROM experience_responses WHERE id=?').get(id)?.payload_hash,hash);
-  }
-  assert.ok(accounts.db.prepare('PRAGMA table_info(experience_responses)').all().some(c=>c.name==='device_id'));
  }finally{accounts.close();}
 });
 
