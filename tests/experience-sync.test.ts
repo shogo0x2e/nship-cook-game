@@ -20,7 +20,7 @@ test('offline deliveries with colliding short IDs remain separate, retry under a
  try{
   const {saveExperience,flushOutbox,onSaved,onIdChanged}=await import('../src/experience-sync.ts');
   const deviceId=randomUUID();
-  const payload:ExperiencePayload={questionnaireVersion,conceptVersion,recipeVersion,deviceId,sequence:1,age:9,demo:true,stage:'done',selectedIngredients:['rice'],evidence:{rice:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:5,help_intent:5,daily_feasibility:5},comment:''},parent:{answers:{task_feasibility:5,continued_use:5,meal_preparation_ease:5,child_initiative:5},comment:'',gameplayStatus:'smooth',employmentStatus:'yes'},serviceFeedback:{interestedFeatures:['none'],comment:''},payment:{kind:'free',maxMonthlyYen:0},complete:true};
+  const payload:ExperiencePayload={questionnaireVersion,conceptVersion,recipeVersion,deviceId,sequence:1,age:9,demo:true,stage:'done',selectedIngredients:['rice'],evidence:{rice:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:5,help_intent:5},playFrequency:'two_to_three_days',comment:''},parent:{answers:{task_feasibility:5,continued_use:5,meal_preparation_ease:5,child_initiative:5},comment:'',gameplayStatus:'smooth',employmentStatus:'yes'},serviceFeedback:{interestedFeatures:['none'],comment:''},payment:{kind:'free',maxMonthlyYen:0},complete:true};
   const a={id:'7K3M9R',key:randomBytes(32).toString('hex'),payload},b={id:a.id,key:randomBytes(32).toString('hex'),payload:{...payload,child:{...payload.child,comment:'another experience'}}};
   const saved:{id:string;key:string}[]=[],changes:{id:string;key:string}[]=[];
   onSaved((ack,key)=>saved.push({id:ack.id,key}));onIdChanged(change=>changes.push(change));

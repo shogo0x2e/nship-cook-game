@@ -66,7 +66,7 @@ def verify_image(image, revision):
         payload = {'questionnaireVersion': flow['questionnaireVersion'], 'recipeVersion': flow['recipeVersion'],
                    'conceptVersion': flow['conceptVersion'], 'deviceId': str(uuid.uuid4()), 'sequence': 1, 'age': 8, 'demo': True, 'stage': 'done',
                    'selectedIngredients': ['rice'], 'evidence': {'rice': {'offered': 1, 'caught': 1}}, 'recipeId': 'curry',
-                   'child': {'answers': {'game_fun': 7, 'help_intent': 6, 'daily_feasibility': 4}, 'comment': ''},
+                   'child': {'answers': {'game_fun': 7, 'help_intent': 6}, 'playFrequency': 'two_to_three_days', 'comment': ''},
                    'parent': {'answers': {'task_feasibility': 6, 'continued_use': 5, 'meal_preparation_ease': 5, 'child_initiative': 6}, 'comment': '', 'gameplayStatus': 'smooth', 'gameplayComment': 'CI demo', 'employmentStatus': 'yes'},
                    'serviceFeedback': {'interestedFeatures': ['food_learning'], 'comment': 'CI demo'},
                    'payment': {'kind': 'free', 'maxMonthlyYen': 0}, 'complete': True}
@@ -81,6 +81,7 @@ def verify_image(image, revision):
         summary = json.loads(run('docker', 'exec', name, 'node', 'scripts/export-surveys.mjs'))
         assert summary['count'] == 0  # CI/demo answers must not enter the real aggregate.
         summary = json.loads(run('docker', 'exec', name, 'node', 'scripts/export-surveys.mjs', '--include-demo'))
+        assert summary['byChildPlayFrequency'] == {'two_to_three_days': 1}
         assert summary['count'] == 1 and summary['featureInterests']['food_learning'] == 1 and summary['browserIdentifiers']['distinctBrowsers'] == 1
         assets = json.loads(Path('src/experience-data.json').read_text())
         paths = [r['image'] for r in assets['recipes']] + list({r['tasks'][0]['photo'] for r in assets['recipes']})

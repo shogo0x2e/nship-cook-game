@@ -1,12 +1,11 @@
-export const questionnaireVersion = 'poc-2026-11-19-v4';
+export const questionnaireVersion = 'poc-2026-11-19-v5';
 export const scale = ['全くそう思わない', 'そう思わない', 'あまりそう思わない', 'どちらともいえない', 'ややそう思う', 'そう思う', '非常にそう思う'];
 export const youngScaleLines = [['ぜんぜん','おもわない'], ['おもわない'], ['あまり','おもわない'], ['どちらでも','ない'], ['すこし','おもう'], ['おもう'], ['とても','おもう']];
 export const youngScale = ['ぜんぜん おもわない', 'おもわない', 'あまり おもわない', 'どちらでもない', 'すこし おもう', 'おもう', 'とても おもう'];
 export const questions = {
   child: [
-    { id: 'game_fun', text: '私が幼稚園くらいの年齢だったら、このゲームで遊ぶのは楽しいと思う。', youngText: 'ゲームは たのしかった。' },
+    { id: 'game_fun', text: '私が幼稚園くらいの年齢だったら、「手の動きで食材を選ぶゲーム」で遊ぶのは楽しいと思う。', youngText: 'ゲームは たのしかった。' },
     { id: 'help_intent', text: '私が幼稚園くらいの年齢だったら、表示されたお手伝いをやってみたいと思う。', youngText: 'この おてつだいを やってみたい。' },
-    { id: 'daily_feasibility', text: '私が幼稚園くらいの年齢だったら、このゲームで毎日遊び続けられそうだと思う。', youngText: 'このゲームなら、まいにちでも あそべそう。' },
   ],
   parent: [
     { id: 'task_feasibility', text: '提案された分担なら、子どもにお手伝いを任せられそうだと思う。' },
@@ -31,8 +30,17 @@ export const gameplayOptions = [
 const gameplayQuestion = { id: 'gameplayStatus', text: 'お子さんは、ゲームをどの程度体験できましたか。' };
 export const employmentOptions = [['yes','はい'],['no','いいえ'],['prefer_not','答えたくない']];
 const employmentQuestion = {id:'employmentStatus',text:'現在、あなたと配偶者・パートナーは、どちらも仕事をしていますか。'};
-export const surveyQuestionCount = role => questions[role].length + (role === 'parent' ? 2 : 0);
-export const freshSurvey = () => ({ answers: {}, comment: '', gameplayStatus: '', gameplayComment: '', employmentStatus: '', submittedAt: null });
+export const playFrequencyQuestion = {id:'playFrequency',text:'私が幼稚園くらいの年齢だったら、このくらいの頻度で「手の動きで食材を選ぶゲーム」をすると思う。',youngText:'てを うごかして たべものを えらぶ ゲームで、このくらい あそぶと おもう。'};
+export const playFrequencyOptions = [
+  ['daily','毎日','まいにち'],
+  ['four_to_six_days','週に4〜6日','1しゅうかんに 4〜6にち'],
+  ['two_to_three_days','週に2〜3日','1しゅうかんに 2〜3にち'],
+  ['one_day','週に1日','1しゅうかんに 1にち'],
+  ['less_often','それより少ない頻度','それより すくなく'],
+  ['never','遊ばないと思う','あそばないと おもう'],
+];
+export const surveyQuestionCount = role => questions[role].length + (role === 'parent' ? 2 : 1);
+export const freshSurvey = () => ({ answers: {}, comment: '', gameplayStatus: '', gameplayComment: '', employmentStatus: '', playFrequency: '', submittedAt: null });
 export function restoreSurvey(role, saved) {
   const result = freshSurvey();
   if (!saved || typeof saved !== 'object') return result;
@@ -41,6 +49,7 @@ export function restoreSurvey(role, saved) {
   result.submittedAt = typeof saved.submittedAt === 'string' ? saved.submittedAt : null;
   if (role === 'parent' && gameplayOptions.some(([value]) => value === saved.gameplayStatus)) result.gameplayStatus = saved.gameplayStatus;
   if (role === 'parent' && employmentOptions.some(([value]) => value === saved.employmentStatus)) result.employmentStatus = saved.employmentStatus;
+  if (role === 'child' && playFrequencyOptions.some(([value]) => value === saved.playFrequency)) result.playFrequency = saved.playFrequency;
   for (const question of questions[role]) {
     const value = saved.answers?.[question.id];
     if (Number.isInteger(value) && value >= 1 && value <= 7) result.answers[question.id] = value;
@@ -55,6 +64,7 @@ export function missingQuestions(role, response) {
   });
   if (role === 'parent' && !gameplayOptions.some(([value]) => value === response.gameplayStatus)) missing.push(gameplayQuestion);
   if (role === 'parent' && !employmentOptions.some(([value]) => value === response.employmentStatus)) missing.unshift(employmentQuestion);
+  if (role === 'child' && !playFrequencyOptions.some(([value]) => value === response.playFrequency)) missing.push(playFrequencyQuestion);
   return missing;
 }
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -74,6 +84,7 @@ export function surveyForm(role, response, young = false) {
     ${young ? `<p class="survey-frame">${frames.young}</p>` : ''}
     ${young ? '<p class="plain-note">おとなの ひとと よんでも いいよ。おとなの方は、お子さん自身の答えを選んでください。</p>' : ''}
     <div class="survey-container">${surveyTable(role, response, false, young)}</div>
+    ${role==='child'?`<section class="question-card play-frequency-question" data-question-row="playFrequency" aria-labelledby="play-frequency-title"><h2 id="play-frequency-title"><span class="question-number">3</span>${young?playFrequencyQuestion.youngText:playFrequencyQuestion.text}</h2><div class="feature-options play-frequency-options">${playFrequencyOptions.map(([value,label,youngLabel])=>`<label class="choice-card"><input type="radio" name="playFrequency" value="${value}" ${response.playFrequency===value?'checked':''}><span>${young?youngLabel:label}</span></label>`).join('')}</div></section>`:''}
     <label class="survey-comment">${young ? 'おもったことが あれば おしえてね（かかなくても いいよ）' : 'そう答えた理由や、気になった点を教えてください（任意）'}<textarea name="comment" rows="4" maxlength="3000">${esc(response.comment)}</textarea></label>
     ${role === 'parent' ? `<section class="question-card gameplay-question" data-question-row="gameplayStatus" aria-labelledby="gameplay-question-title"><h2 id="gameplay-question-title"><span class="question-number">5</span>${gameplayQuestion.text}</h2><div class="gameplay-options">${gameplayOptions.map(([value,label]) => `<label class="gameplay-option"><input type="radio" name="gameplayStatus" value="${value}" ${response.gameplayStatus === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></section><label class="survey-comment">ゲームの動作や、困ったことがあれば教えてください（任意）<textarea name="gameplayComment" rows="3" maxlength="3000">${esc(response.gameplayComment)}</textarea></label>` : ''}
     <p id="survey-error" class="survey-error" role="alert"></p><p id="survey-progress" class="selection-count" aria-live="polite">${young ? 'こたえた かず' : '回答済み'} ${surveyQuestionCount(role) - missingQuestions(role, response).length} / ${surveyQuestionCount(role)}</p>

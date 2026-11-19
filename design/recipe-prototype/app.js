@@ -1,7 +1,7 @@
 import { inventoryVersion } from './inventory.js';
 import { inventorySummary, inventoryRecipes, inventoryMaterials } from './inventory-view.js';
 import { foods, recipes, matches, suggestions, childTaskFor, foodPairs, categoryLabels, duration, cookingFlow } from './recipes.js';
-import { questionnaireVersion, scale, questions, freshSurvey, missingQuestions, surveyQuestionCount, surveyForm } from './survey.js';
+import { questionnaireVersion, scale, questions, playFrequencyQuestion, playFrequencyOptions, freshSurvey, missingQuestions, surveyQuestionCount, surveyForm } from './survey.js';
 import { freshParticipant, restoreParticipant, participantComplete, participantFields, isYoung } from './participant.js';
 import { offer, features, freshMarket, validBudget, validInterests, marketComplete, marketView } from './market.js';
 import { newExperienceId } from './experience-id.js';
@@ -73,7 +73,7 @@ function responseRecord() {
   const recipe = recipeNow();
   return { sessionId: state.sessionId, deviceId, questionnaireVersion, inventoryVersion, createdAt: state.createdAt, updatedAt: new Date().toISOString(), demo: demoMode,
     participant: { ...state.participant, childSurveyMode: isYoung(state.participant) ? 'young-current-experience' : 'older-kindergarten-hypothetical' },
-    questionnaire: { child: questions.child.map(q => ({ id: q.id, text: isYoung(state.participant) ? q.youngText : q.text })), parent: questions.parent },
+    questionnaire: { child: questions.child.map(q => ({ id: q.id, text: isYoung(state.participant) ? q.youngText : q.text })), playFrequency: { question: isYoung(state.participant) ? playFrequencyQuestion.youngText : playFrequencyQuestion.text, options: playFrequencyOptions.map(([value,label,youngLabel]) => ({value,label:isYoung(state.participant)?youngLabel:label})) }, parent: questions.parent },
     plannedService: { offer, features, responses: JSON.parse(JSON.stringify(state.market)) },
     selectedIngredients: [...state.caught], recipe: recipe ? { id: recipe.id, name: recipe.name, source: recipe.source, childTaskId: recipe.childTaskId } : null,
     responses: JSON.parse(JSON.stringify(state.surveys)), complete: Boolean(state.surveys.child.submittedAt && !missingQuestions('child', state.surveys.child).length && state.surveys.parent.submittedAt && marketComplete(state.market)) };
@@ -96,7 +96,7 @@ function packet(complete = false) {
     questionnaireVersion, recipeVersion: 'daily-2026-11-19-v1', conceptVersion: offer.version, inventoryVersion, deviceId,
     sequence: ++state.sequence, age: Number(state.participant.age), demo: demoMode, stage: complete ? 'done' : state.stage,
     selectedIngredients: [...new Set(state.caught)], evidence, recipeId: state.recipeId,
-    child: { answers: { ...state.surveys.child.answers }, comment: state.surveys.child.comment },
+    child: { answers: { ...state.surveys.child.answers }, comment: state.surveys.child.comment, playFrequency: state.surveys.child.playFrequency || null },
     parent: { answers: { ...state.surveys.parent.answers }, comment: state.surveys.parent.comment, gameplayStatus: state.surveys.parent.gameplayStatus || null, gameplayComment: state.surveys.parent.gameplayComment, employmentStatus: state.surveys.parent.employmentStatus || null },
     serviceFeedback: { interestedFeatures: [...market.interestedFeatures], comment: market.featureComment },
     payment: validBudget(market) ? { kind: market.budgetKind, maxMonthlyYen: market.budgetKind === 'paid' ? Number(market.maxMonthlyYen) : market.budgetKind === 'free' ? 0 : null } : null,
@@ -127,7 +127,7 @@ function exportResponses() {
   const records = readRecords();
   const index = records.findIndex(record => record.sessionId === state.sessionId);
   if (index < 0) records.push(responseRecord()); else records[index] = responseRecord();
-  const data = { schemaVersion: 2, questionnaireVersion, exportedAt: new Date().toISOString(), demo: demoMode, scale, questions, offer, features, records };
+  const data = { schemaVersion: 2, questionnaireVersion, exportedAt: new Date().toISOString(), demo: demoMode, scale, questions, playFrequencyQuestion, playFrequencyOptions, offer, features, records };
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = `cookgame-survey-${Date.now()}.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -142,6 +142,7 @@ function updateSurvey(form) {
     else delete response.answers[question.id];
   }
   response.comment = String(data.get('comment') || ''); response.submittedAt = null;
+  if (role === 'child') response.playFrequency = String(data.get('playFrequency') || '');
   if (role === 'parent') { response.gameplayStatus = String(data.get('gameplayStatus') || ''); response.gameplayComment=String(data.get('gameplayComment') || ''); response.employmentStatus=String(data.get('employmentStatus') || ''); }
   if (role === 'parent') { state.market.experienceCompletedAt = null; state.market.submittedAt = null; }
   const missing = missingQuestions(role, response);
@@ -212,7 +213,7 @@ function handoffView() {
 function recipeListView() {
   const list = suggestions(state.caught, state.showAll);
   const cards = inventoryRecipes(list, state.caught, recipe => button('レシピを見る', 'open-recipe', `data-recipe="${recipe.id}" aria-label="${recipe.name}のレシピを見る"`));
-  return `${heading('保護者の方へ', 'お子さんの好みと、<br>家にあるものから提案します。')}${inventorySummary(state.caught)}${list.length ? cards : `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>`}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}<p class="plain-note">今回は取得済みの在庫サンプルを使用しています。完成写真と元レシピの出典は、各レシピで確認できます。</p>`;
+  return `${heading('保護者の方へ', 'お子さんの好みと、<br>家にあるものから提案します。')}${inventorySummary(state.caught)}${list.length ? cards : `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>`}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}`;
 }
 
 function chooseRecipe(recipe) {

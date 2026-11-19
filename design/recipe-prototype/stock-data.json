@@ -1,5 +1,5 @@
 {
-  "version": "household-stock-2026-11-19-v1",
+  "version": "household-stock-2026-11-19-v2",
   "items": {
     "rice": {
       "name": "ごはん",
@@ -54,12 +54,12 @@
     "bread": {
       "name": "食パン",
       "kind": "food",
-      "present": true
+      "present": false
     },
     "sandwich-bread": {
       "name": "サンドイッチ用食パン",
       "kind": "food",
-      "present": true
+      "present": false
     },
     "beef": {
       "name": "牛肉（角切り）",

@@ -1508,7 +1508,7 @@ html[data-mode=production] .young-score-label,html[data-mode=production] .choice
 .device-plan h2{font-size:17px;line-height:1.7;margin-bottom:10px;}
 .gameplay-question{min-width:0;padding:18px;margin:28px 0;border:1px solid #d8dfcd;border-radius:12px;}
 .gameplay-question legend{font-size:15px;line-height:1.8;padding:0 6px;}
-.gameplay-question.is-missing{border-color:#a55b36;}
+.question-card.is-missing{border-color:#a55b36;}
 .gameplay-question .feature-options{margin-top:14px;}
 .gameplay-question .choice-card{font-size:13px;}
 .game-navigation{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 20px;}
@@ -1553,3 +1553,8 @@ html[data-mode=production] body.is-game .game-help{display:none;}
 .camera-launch{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
 .camera-launch>.privacy{margin:0;font-size:12px;text-align:center;}
 @media(max-width:420px){.employment-options{grid-template-columns:1fr;}.employment-options .choice-card{padding:12px;}.intro-study{font-size:13px;}}
+
+.play-frequency-options{grid-template-columns:repeat(2,minmax(0,1fr));margin:0;}
+.play-frequency-options .choice-card{align-items:center;}
+.play-frequency-options .choice-card input{margin:0;}
+@media(max-width:600px){.play-frequency-options{grid-template-columns:1fr;}}

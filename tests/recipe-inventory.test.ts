@@ -20,18 +20,21 @@ test('household stock covers every recipe material and seasoning, including grou
  const present=new Set(Object.entries(stock.items).filter(([,item])=>item.present).map(([key])=>key));
  assert.equal(stock.recipeMaterials.nikujaga.filter(row=>!present.has(row.key)).length,0);
  assert.deepEqual(stock.recipeMaterials.yakisoba.filter(row=>!present.has(row.key)).map(row=>row.key),['sprouts']);
+ // Dinner sample has no bread; egg sandwiches remain available with shopping.
+ assert.deepEqual(stock.recipeMaterials['egg-sandwich'].filter(row=>!present.has(row.key)).map(row=>row.key),['sandwich-bread']);
+ assert.equal(present.has('bread'),false);
 });
 
 test('the combined stock panel only highlights selected foods that are present, with other stock kept separate',()=>{
  const result=inventorySelection(['pork','pork','noodles','salmon','tomato','bread']);
- assert.deepEqual(result.availableFoodIds,['pork','noodles','bread']);
- assert.deepEqual(result.missingFoodIds,['salmon','tomato']);
+ assert.deepEqual(result.availableFoodIds,['pork','noodles']);
+ assert.deepEqual(result.missingFoodIds,['salmon','tomato','bread']);
  const selectedKeys=new Set(result.availableFoodIds.flatMap((id:string)=>foodStockKeys[id]));
  assert.ok(result.otherItems.every(([key]:[string,unknown])=>defaultStock.has(key)&&!selectedKeys.has(key)));
  assert.ok(result.otherItems.some(([key]:[string,unknown])=>key==='potato'));
  assert.ok(result.otherItems.some(([key]:[string,unknown])=>key==='soy'));
  assert.ok(!result.otherItems.some(([key]:[string,unknown])=>key==='water'));
- const none=inventorySelection([]);assert.equal(none.availableFoodIds.length,0);assert.equal(none.otherItems.length,33);
+ const none=inventorySelection([]);assert.equal(none.availableFoodIds.length,0);assert.equal(none.otherItems.length,31);
 });
 test('every displayed adult step has an optimized photo and child steps keep their existing task photo',()=>{
  for(const recipe of data.recipes){
