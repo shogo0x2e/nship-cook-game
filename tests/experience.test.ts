@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import { AccountStore } from '../server/account-store.ts';
 import { ExperienceStore } from '../server/experience-store.ts';
 import { createSessionServer } from '../server/server.ts';
-import { questionnaireVersion, recipeVersion, conceptVersion, inventoryVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
-const payload=(complete=false):ExperiencePayload=>({questionnaireVersion,recipeVersion,conceptVersion,sequence:1,age:8,demo:true,stage:complete?'done':'child-survey',selectedIngredients:['rice','carrot'],evidence:{rice:{offered:1,caught:1},carrot:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:7,help_intent:6,daily_feasibility:4},comment:'こどもの感想'},parent:{answers:complete?{task_feasibility:6,continued_use:5}:{},comment:''},payment:complete?{kind:'free',maxMonthlyYen:0}:null,complete});
+import { questionnaireVersion, legacyQuestionnaireVersion, recipeVersion, conceptVersion, legacyConceptVersion, inventoryVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
+const payload=(complete=false):ExperiencePayload=>({questionnaireVersion,recipeVersion,conceptVersion,sequence:1,age:8,demo:true,stage:complete?'done':'child-survey',selectedIngredients:['rice','carrot'],evidence:{rice:{offered:1,caught:1},carrot:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:7,help_intent:6,daily_feasibility:4},comment:'こどもの感想'},parent:{answers:complete?{task_feasibility:6,continued_use:5,meal_decision_ease:4,child_initiative:6}:{},comment:'',gameplayStatus:complete?'smooth':null},payment:complete?{kind:'free',maxMonthlyYen:0}:null,complete});
 const status=(code:number)=>(error:unknown)=>error instanceof Error&&'status' in error&&error.status===code;
 test('anonymous response is durable, private, idempotent, and final answers cannot be replaced by delayed drafts',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'cookgame-survey-'));const path=join(dir,'survey.sqlite');const id=randomUUID(),key=randomBytes(32).toString('hex');let accounts=new AccountStore(path);let store=new ExperienceStore(accounts.db);
@@ -61,6 +61,22 @@ test('public survey API requires a private experience key and same-origin writes
  }finally{app.server.closeAllConnections();await new Promise<void>(resolve=>app.server.close(()=>resolve()));}
 });
 
+test('v2 requires the new questions and playability while queued v1 responses retain their original body and version',()=>{
+ const accounts=new AccountStore();const store=new ExperienceStore(accounts.db);const key=randomBytes(32).toString('hex');
+ try{
+  const old:ExperiencePayload={...payload(true),questionnaireVersion:legacyQuestionnaireVersion,conceptVersion:legacyConceptVersion,parent:{answers:{task_feasibility:6,continued_use:5},comment:'旧版の保留回答'}};
+  const oldId=randomUUID();const ack=store.save(oldId,key,old);
+  assert.deepEqual(store.get(oldId,key).payload,old);assert.equal(store.save(oldId,key,old).receipt,ack.receipt);
+  assert.equal(accounts.db.prepare('SELECT questionnaire_version FROM experience_responses WHERE id=?').get(oldId)?.questionnaire_version,legacyQuestionnaireVersion);
+  assert.throws(()=>store.save(randomUUID(),key,{...old,questionnaireVersion}),status(400));
+  const missing={...payload(true),parent:{...payload(true).parent,gameplayStatus:null}};
+  assert.throws(()=>store.save(randomUUID(),key,missing),status(400));
+  assert.throws(()=>store.save(randomUUID(),key,{...payload(true),parent:{...payload(true).parent,gameplayStatus:'unknown'}}),status(400));
+  const failed={...payload(true),gameInput:'camera',parent:{...payload(true).parent,gameplayStatus:'issues_unable'}};
+  const id=randomUUID();assert.equal(store.save(id,key,failed).complete,true);assert.deepEqual(store.get(id,key).payload,failed);
+ }finally{accounts.close();}
+});
+
 test('operator exports exclude demo/drafts and safely preserve optional comments and price units',async()=>{
  const {execFileSync}=await import('node:child_process');const {readFile,stat}=await import('node:fs/promises');
  const dir=await mkdtemp(join(tmpdir(),'cookgame-export-'));const path=join(dir,'cookgame.sqlite');
@@ -72,6 +88,7 @@ test('operator exports exclude demo/drafts and safely preserve optional comments
   const draft=payload();draft.demo=false;store.save(randomUUID(),randomBytes(32).toString('hex'),draft);accounts.close();
   const summary=JSON.parse(execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path],{encoding:'utf8'}));
   assert.equal(summary.count,1);assert.equal(summary.byInventoryVersion[inventoryVersion],1);assert.equal(summary.paidMaxMonthlyYen.median,500);assert.equal(summary.likert['young-current-experience'].scores.game_fun.n,1);
+  assert.equal(summary.byGameplayStatus.smooth,1);assert.equal(summary.likert['young-current-experience'].scores.meal_decision_ease.n,1);assert.equal(summary.likert['young-current-experience'].scores.child_initiative.n,1);
   const csv=join(dir,'answers.csv');execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path,'--format','csv','--out',csv]);
   const text=await readFile(csv,'utf8');assert.ok(text.startsWith('\ufeff'));assert.ok(text.includes("'=HYPERLINK"));assert.equal((await stat(csv)).mode&0o777,0o600);
  }finally{await rm(dir,{recursive:true,force:true});}

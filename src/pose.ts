@@ -17,10 +17,11 @@ export class PoseCamera {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('HTTPS または localhost で開いてください。カメラのない場合はおためし操作で遊べます。');
     // Only local assets are used. No camera frames leave this device.
     const fileset = await FilesetResolver.forVisionTasks('/pose/wasm');
-    let model: PoseLandmarker;
-    const options = { baseOptions: { modelAssetPath: '/pose/pose_landmarker_lite.task' }, runningMode: 'VIDEO' as const, numPoses: 1, minPoseDetectionConfidence: .6, minPosePresenceConfidence: .6, minTrackingConfidence: .6, outputSegmentationMasks: false };
-    try { model = await PoseLandmarker.createFromOptions(fileset, { ...options, baseOptions: { ...options.baseOptions, delegate: 'GPU' } }); }
-    catch { model = await PoseLandmarker.createFromOptions(fileset, { ...options, baseOptions: { ...options.baseOptions, delegate: 'CPU' } }); }
+    const model = await PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: '/pose/pose_landmarker_lite.task', delegate: 'CPU' },
+      runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: .6,
+      minPosePresenceConfidence: .6, minTrackingConfidence: .6, outputSegmentationMasks: false,
+    });
     if (generation !== this.generation) { model.close(); return; }
     this.model = model;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, max: 30 } } });

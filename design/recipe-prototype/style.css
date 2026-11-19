@@ -1439,3 +1439,52 @@ html[data-mode=production] .young-score-label,html[data-mode=production] .choice
 .native-game .framing-game-feedback button{pointer-events:auto;}
 .native-game .framing-field.has-face .guide-face,.native-game .framing-field.has-elbows .guide-arms,.native-game .framing-field.has-elbows .guide-torso,.native-game .framing-field.has-hands .guide-hands{stroke:#d7f7c5;}
 .native-game .framing-game-feedback button[hidden]{display:none;}
+/* Three actions, illustrated, with text that stays readable on a phone. */
+.intro-title{font-size:clamp(26px,3.3vw,38px);line-height:1.65;letter-spacing:.015em;margin:0 0 18px;text-wrap:balance;}
+.intro-mobile-break{display:none;}
+.intro-lead{margin:0 0 28px;}
+.experience-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;list-style:none;padding:0;margin:28px 0 20px;}
+.experience-steps>li{min-width:0;margin:0;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#fffef8;}
+.experience-step-image{aspect-ratio:1;background-image:url('/experience/assets/intro-flow-v2.webp');background-size:300% 100%;background-repeat:no-repeat;}
+.step-image-1{background-position:0 50%;}.step-image-2{background-position:50% 50%;}.step-image-3{background-position:100% 50%;}
+.experience-step-copy{display:flex;align-items:start;gap:9px;padding:14px 12px;}
+.experience-step-copy>span{display:grid;place-items:center;flex:none;width:24px;height:24px;border-radius:50%;background:#e7efdd;color:var(--green);font-size:12px;font-weight:700;}
+.experience-step-copy h2{font-size:15px;line-height:1.65;margin:0 0 6px;}
+.experience-step-copy p,.intro-assumption{font-size:12px;line-height:1.8;color:var(--muted);}
+.device-plan{padding:18px 0;margin:22px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:13px;line-height:1.9;color:var(--green);}
+.device-plan summary{cursor:pointer;min-height:44px;}
+.device-plan h2{font-size:17px;line-height:1.7;margin-bottom:10px;}
+.gameplay-question{min-width:0;padding:18px;margin:28px 0;border:1px solid #d8dfcd;border-radius:12px;}
+.gameplay-question legend{font-size:15px;line-height:1.8;padding:0 6px;}
+.gameplay-question.is-missing{border-color:#a55b36;}
+.gameplay-question .feature-options{margin-top:14px;}
+.gameplay-question .choice-card{font-size:13px;}
+.game-navigation{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 20px;}
+.game-navigation .text-action{margin:0;padding:6px 4px;font-size:12px;min-height:38px;width:auto;}
+.landscape-notice{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:28px;background:#faf9f2;text-align:center;color:#355f49;}
+.landscape-notice[hidden]{display:none;}
+.landscape-notice svg{width:120px;height:100px;}
+.landscape-notice h2{font-size:24px;line-height:1.7;}
+.landscape-notice p{font-size:15px;line-height:1.9;}
+html[data-mode=production] body.is-game .review-layout{max-width:none;margin:0;padding:0;}
+html[data-mode=production] body.is-game .app-shell{min-height:100dvh;border:0;border-radius:0;}
+html[data-mode=production] body.is-game .app-header,html[data-mode=production] body.is-game .app-footer{display:none;}
+html[data-mode=production] body.is-game main[data-screen=game]{padding:10px 20px;min-height:100dvh;}
+html[data-mode=production] body.is-game .native-game .field{height:calc(100dvh - 150px);min-height:240px;max-height:900px;}
+html[data-mode=production] body.is-game .game-help{display:none;}
+@media(max-width:600px){
+ .intro-mobile-break{display:block;}
+ .experience-steps{grid-template-columns:1fr;gap:12px;}
+ .experience-steps>li{display:grid;grid-template-columns:105px minmax(0,1fr);align-items:center;}
+ .experience-step-copy{gap:8px;padding:12px;}
+ .experience-step-copy h2{font-size:15px;}
+ .experience-step-copy p{font-size:11px;}
+}
+@media(orientation:landscape) and (max-height:600px){
+ html[data-mode=production] body.is-game main[data-screen=game]{padding:6px 12px 0;}
+ html[data-mode=production] body.is-game .native-game .field{height:calc(100dvh - 112px);min-height:180px;}
+ html[data-mode=production] body.is-game .native-game .tracking-debug{display:none;}
+ html[data-mode=production] body.is-game .native-game .game-bottom{min-height:34px;}
+ html[data-mode=production] body.is-game .game-navigation{gap:3px 16px;}
+ html[data-mode=production] body.is-game .game-navigation .text-action{font-size:11px;min-height:30px;}
+}

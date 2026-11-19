@@ -8,6 +8,7 @@ RUN npm ci --no-audit --no-fund
 COPY index.html legacy.html poc.html tsconfig.json vite.config.ts ./
 COPY public/avatar ./public/avatar
 COPY public/experience ./public/experience
+COPY public/favicon.ico public/favicon-32.png public/favicon-192.png ./public/
 COPY design/recipe-prototype ./design/recipe-prototype
 COPY src ./src
 COPY server ./server

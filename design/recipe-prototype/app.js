@@ -1,7 +1,7 @@
 import { inventoryVersion } from './inventory.js';
 import { inventorySummary, inventoryRecipes, inventoryMaterials } from './inventory-view.js';
 import { foods, recipes, matches, suggestions, childTaskFor, foodPairs, categoryLabels, duration, cookingFlow } from './recipes.js';
-import { questionnaireVersion, scale, questions, freshSurvey, restoreSurvey, missingQuestions, surveyForm } from './survey.js';
+import { questionnaireVersion, scale, questions, freshSurvey, restoreSurvey, missingQuestions, surveyQuestionCount, surveyForm } from './survey.js';
 import { freshParticipant, restoreParticipant, participantComplete, participantFields, isYoung } from './participant.js';
 import { offer, features, freshMarket, restoreMarket, validBudget, marketComplete, marketView } from './market.js';
 
@@ -111,9 +111,9 @@ function packet(complete = false) {
     sequence: ++state.sequence, age: Number(state.participant.age), demo: demoMode, stage: complete ? 'done' : state.stage,
     selectedIngredients: [...new Set(state.caught)], evidence, recipeId: state.recipeId,
     child: { answers: { ...state.surveys.child.answers }, comment: state.surveys.child.comment },
-    parent: { answers: { ...state.surveys.parent.answers }, comment: state.surveys.parent.comment },
+    parent: { answers: { ...state.surveys.parent.answers }, comment: state.surveys.parent.comment, gameplayStatus: state.surveys.parent.gameplayStatus || null },
     payment: validBudget(market) ? { kind: market.budgetKind, maxMonthlyYen: market.budgetKind === 'paid' ? Number(market.maxMonthlyYen) : market.budgetKind === 'free' ? 0 : null } : null,
-    complete,
+    gameInput: state.gameInput, complete,
   }};
 }
 function checkpoint() {
@@ -155,9 +155,10 @@ function updateSurvey(form) {
     else delete response.answers[question.id];
   }
   response.comment = String(data.get('comment') || ''); response.submittedAt = null;
+  if (role === 'parent') response.gameplayStatus = String(data.get('gameplayStatus') || '');
   if (role === 'parent') { state.market.experienceCompletedAt = null; state.market.submittedAt = null; }
   const missing = missingQuestions(role, response);
-  document.querySelector('#survey-progress').textContent = `回答済み ${questions[role].length - missing.length} / ${questions[role].length}`;
+  document.querySelector('#survey-progress').textContent = `回答済み ${surveyQuestionCount(role) - missing.length} / ${surveyQuestionCount(role)}`;
   form.querySelectorAll('[data-question-row]').forEach(row => row.classList.toggle('is-missing', row.classList.contains('is-missing') && missing.some(q => q.id === row.dataset.questionRow)));
   save();
   if (production) { clearTimeout(draftTimer); draftTimer = setTimeout(checkpoint, 900); }
@@ -187,7 +188,12 @@ function renderPanel() {
 }
 
 function introView() {
-  return `<h1 class="sr-only">体験のご案内</h1><p class="lead">子どもがゲームで選んだ食材と、ご家庭にある食材・調味料から、料理と親子の分担を提案する体験版です。</p><p class="lead">今回は、家にあるものをあらかじめ把握している想定で、用意した在庫サンプルを使います。レシピと担当工程を確認したあと、アンケートにご協力ください。実際に調理する必要はありません。</p><div class="intro-photo">${photo(recipes[0])}<span>料理と、お手伝いの提案</span></div><ol class="intro-steps"><li><span>1</span><div><b>子どもが食材を選ぶ</b><p>食材を選択するゲームを体験します。</p></div></li><li><span>2</span><div><b>親がレシピを確認する</b><p>家にあるもの・買い足すものと、子どもの担当工程を確認します。</p></div></li><li><span>3</span><div><b>子どもがやることを見る</b><p>完成写真と担当工程を確認し、アンケートに回答します。</p></div></li></ol><p class="study-note">幼稚園くらいのお子さん向けの体験です。年上の方は、当時の自分を思い浮かべてお試しください。</p><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。</p>${production ? '<p class="privacy">アンケートの回答は、今回の体験の改善・検討のために収集します。名前やログイン情報の入力は不要です。</p>' : ''}${credit(recipes[0])}`;
+  const steps = [
+    ['子どもがゲームをする', '手をのばして、食材を選びます。'],
+    ['レシピの推薦を見る', '料理と親子の分担を確認します。'],
+    ['アンケートに答える', '親子それぞれの感想を教えてください。'],
+  ];
+  return `<h1 class="intro-title">食材選びから始める、<br>共働き家庭の<br class="intro-mobile-break">親子のごはんづくり</h1><p class="lead intro-lead">ゲームで選んだ食材と、家にあるものから、料理と親子の分担を提案する体験版です。</p><ol class="experience-steps">${steps.map(([title,copy],i)=>`<li><div class="experience-step-image step-image-${i+1}" role="img" aria-label="${title}のイメージ"></div><div class="experience-step-copy"><span>${i+1}</span><div><h2>${title}</h2><p>${copy}</p></div></div></li>`).join('')}</ol><p class="intro-assumption">今回は在庫サンプルを使います。実際に調理する必要はありません。</p><p class="study-note">幼稚園くらいのお子さん向けの体験です。年上の方は、当時の自分を思い浮かべてお試しください。ゲームは端末を横にして遊びます。</p><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><details class="device-plan"><summary>実際のご家庭での利用について</summary><p>実際の利用では、お子さんはタブレット、保護者はご自身のスマートフォンなど、別々の端末を使う想定です。ご家庭のタブレットを使い、お持ちでない場合は、置いて使えるタブレットを貸与する構想です。</p><p>今回の体験版では、1台の端末を親子で受け渡してお試しください。</p></details><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。</p>${production ? '<p class="privacy">アンケートは体験の改善・検討に使用します。名前やログイン情報の入力は不要です。</p>' : ''}`;
 }
 
 function cameraView() {
@@ -195,7 +201,7 @@ function cameraView() {
 }
 
 function gameView() {
-  if (production || state.gameInput==='camera') return '<div id="native-game" class="native-game"></div><button class="text-action" data-action="go" data-stage="camera">開始画面に戻る</button><button class="text-action" data-action="demo-game">カメラなしで試す</button>';
+  if (production || state.gameInput==='camera') return '<div id="native-game" class="native-game"></div><nav class="game-navigation" aria-label="ゲームの操作"><button class="text-action" data-action="go" data-stage="camera">開始画面に戻る</button><button class="text-action" data-action="demo-game">カメラなしで試す</button><button class="text-action" data-action="skip-game">ゲームを終了して先に進む</button></nav>';
   const pair = foodPairs[Math.min(state.caught.length, foodPairs.length - 1)];
   return `${heading('子ども', 'すきなほうを<br>キャッチしよう。')}<p class="demo-label">画面確認用：食材をタップして進みます</p><div class="simple-game"><div class="game-top"><b>${state.score} <small>点</small></b><span>${state.caught.length} / ${foodPairs.length} キャッチ</span></div><div class="catch-choices">${pair.map(id => foods.find(food => food.id === id)).map(food => `<button data-action="catch" data-food="${food.id}" aria-label="${food.name}をキャッチ"><span>${food.emoji}</span><small>${food.name}</small></button>`).join('')}</div><div class="demo-character" aria-hidden="true"><div class="demo-face">◡</div><img src="/avatar/body.png" alt=""></div></div>${chips(state.caught)}<button class="text-action" data-action="go" data-stage="result">ここまでで終わる</button>`;
 }
@@ -297,6 +303,7 @@ function render() {
     }).catch(()=>{if(generation===gameMountGeneration)app.innerHTML='<p>ゲームを読み込めませんでした。ページを再読み込みしてください。</p>';});
   }
   app.dataset.screen = stage;
+  document.body.classList.toggle('is-game', stage === 'game');
   renderPanel();
   save();
   document.body.classList.remove('flow-open');
@@ -318,6 +325,7 @@ document.addEventListener('click', event => {
   if (action === 'reset') { nativeGame?.destroy();nativeGame=null; state = freshState(); storageNotice = ''; go('intro'); }
   if (action === 'start-camera-game') {gameEntryRequested=true;state.caught=[];state.evidence={};state.gameFinished=false;state.score=0;state.recipeId=null;state.gameInput='camera';go('game');}
   if (action === 'demo-game') { gameEntryRequested=true;state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = 'demo'; go('game'); }
+  if (action === 'skip-game') { state.gameFinished = true; save(); go('handoff'); }
   if (action === 'market-back') { state.market.step = target.dataset.step; save(); render(); }
   if (action === 'market-next') { state.market.step = 'budget'; save(); render(); }
   if (action === 'review-market') { state.market.step = 'concept'; go('parent-survey'); }

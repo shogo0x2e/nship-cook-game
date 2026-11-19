@@ -67,7 +67,7 @@ def verify_image(image, revision):
                    'conceptVersion': flow['conceptVersion'], 'sequence': 1, 'age': 8, 'demo': True, 'stage': 'done',
                    'selectedIngredients': ['rice'], 'evidence': {'rice': {'offered': 1, 'caught': 1}}, 'recipeId': 'curry',
                    'child': {'answers': {'game_fun': 7, 'help_intent': 6, 'daily_feasibility': 4}, 'comment': ''},
-                   'parent': {'answers': {'task_feasibility': 6, 'continued_use': 5}, 'comment': ''},
+                   'parent': {'answers': {'task_feasibility': 6, 'continued_use': 5, 'meal_decision_ease': 5, 'child_initiative': 6}, 'comment': '', 'gameplayStatus': 'smooth'},
                    'payment': {'kind': 'free', 'maxMonthlyYen': 0}, 'complete': True}
         headers = {'Host': 'localhost:8787', 'Origin': 'https://cookgame.shogo0x2e.com',
                    'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'}
@@ -86,10 +86,14 @@ def verify_image(image, revision):
         paths += ['/experience/assets/concept-' + slug + '.webp' for slug in ['game-recipe', 'food-learning', 'challenge-feedback', 'expert-recipes', 'family-schedule']]
         flow_photos = json.loads(Path('design/recipe-prototype/flow-photo-data.json').read_text())
         paths += sorted({step['photo'] for recipe in flow_photos['recipes'].values() for step in recipe.values()})
-        paths += ['/experience/assets/household-fridge-v1.webp']
+        paths += ['/experience/assets/household-fridge-v1.webp', '/experience/assets/intro-flow-v2.webp',
+                  '/experience/assets/concept-food-learning-v2.webp', '/experience/assets/concept-challenge-feedback-v2.webp']
         for path in paths:
             with urllib.request.urlopen(urllib.request.Request(base + path, headers={'Host': 'localhost:8787'}), timeout=5) as response:
                 assert response.headers['Content-Type'] == 'image/webp' and response.read(4) == b'RIFF', path
+        for path in ['/favicon.ico', '/favicon-32.png', '/favicon-192.png']:
+            with urllib.request.urlopen(urllib.request.Request(base + path, headers={'Host': 'localhost:8787'}), timeout=5) as response:
+                assert response.status == 200 and len(response.read()) > 100, path
     finally:
         subprocess.run(['docker', 'rm', '-f', name], check=False, stdout=subprocess.DEVNULL)
 

@@ -1,12 +1,13 @@
 import { createHash, timingSafeEqual, randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { SessionError, strictObject } from './session-store.ts';
-import { questionnaireVersion, recipeVersion, conceptVersion, inventoryVersion, experienceFoodIds, experienceRecipeIds, childQuestionIds, parentQuestionIds, experienceStages, type ExperiencePayload } from '../src/experience-protocol.ts';
+import { questionnaireVersion, legacyQuestionnaireVersion, recipeVersion, conceptVersion, legacyConceptVersion, inventoryVersion, experienceFoodIds, experienceRecipeIds, childQuestionIds, parentQuestionIds, legacyParentQuestionIds, gameplayStatuses, experienceStages, type ExperiencePayload } from '../src/experience-protocol.ts';
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 const integer=(value:unknown,min:number,max:number):value is number=>Number.isSafeInteger(value)&&Number(value)>=min&&Number(value)<=max;
 const invalid=():never=>{throw new SessionError(400,'Invalid experience response');};
-function answers(value:unknown,ids:readonly string[],complete:boolean){
- const section=strictObject(value,['answers','comment']);
+function answers(value:unknown,ids:readonly string[],complete:boolean,parent=false,requireGameplay=false){
+ const hasGameplay=parent&&Boolean(value&&typeof value==='object'&&Object.hasOwn(value,'gameplayStatus'));
+ const section=strictObject(value,hasGameplay?['answers','comment','gameplayStatus']:['answers','comment']);
  if(typeof section.comment!=='string'||section.comment.length>3000)invalid();
  if(!section.answers||typeof section.answers!=='object'||Array.isArray(section.answers))invalid();
  const result:Record<string,number>={};
@@ -14,15 +15,20 @@ function answers(value:unknown,ids:readonly string[],complete:boolean){
   if(!ids.includes(key)||!integer(score,1,7))invalid();result[key]=score as number;
  }
  if(complete&&ids.some(id=>result[id]===undefined))invalid();
- return {answers:result,comment:section.comment as string};
+ if(hasGameplay&&section.gameplayStatus!==null&&!gameplayStatuses.includes(section.gameplayStatus as typeof gameplayStatuses[number]))invalid();
+ if(complete&&requireGameplay&&(!hasGameplay||section.gameplayStatus===null))invalid();
+ return {answers:result,comment:section.comment as string,...(hasGameplay?{gameplayStatus:section.gameplayStatus as ExperiencePayload['parent']['gameplayStatus']}:{})};
 }
 export function validateExperience(value:unknown):ExperiencePayload{
  const keys=['questionnaireVersion','recipeVersion','conceptVersion','sequence','age','demo','stage','selectedIngredients','evidence','recipeId','child','parent','payment','complete'];
  if(value&&typeof value==='object'&&Object.hasOwn(value,'inventoryVersion'))keys.push('inventoryVersion');
+ if(value&&typeof value==='object'&&Object.hasOwn(value,'gameInput'))keys.push('gameInput');
  const v=strictObject(value,keys);
- if(v.questionnaireVersion!==questionnaireVersion||v.recipeVersion!==recipeVersion||v.conceptVersion!==conceptVersion)throw new SessionError(409,'Questionnaire version changed; start a new experience');
+ if(![questionnaireVersion,legacyQuestionnaireVersion].includes(v.questionnaireVersion as typeof questionnaireVersion)||v.recipeVersion!==recipeVersion||![conceptVersion,legacyConceptVersion].includes(v.conceptVersion as typeof conceptVersion))throw new SessionError(409,'Questionnaire version changed; start a new experience');
+ const current=v.questionnaireVersion===questionnaireVersion;
  // Optional for pre-update clients and pending answers; old payloads retain their hash.
  if(v.inventoryVersion!==undefined&&v.inventoryVersion!==inventoryVersion)invalid();
+ if(v.gameInput!==undefined&&!['camera','demo'].includes(String(v.gameInput)))invalid();
  if(!integer(v.sequence,1,1_000_000)||!integer(v.age,0,120)||typeof v.demo!=='boolean'||typeof v.complete!=='boolean'||!experienceStages.includes(v.stage as typeof experienceStages[number]))invalid();
  if(!Array.isArray(v.selectedIngredients)||v.selectedIngredients.length>13||new Set(v.selectedIngredients).size!==v.selectedIngredients.length||v.selectedIngredients.some(id=>!experienceFoodIds.includes(id as typeof experienceFoodIds[number])))invalid();
  if(v.recipeId!==null&&!experienceRecipeIds.includes(v.recipeId as typeof experienceRecipeIds[number]))invalid();
@@ -44,7 +50,7 @@ export function validateExperience(value:unknown):ExperiencePayload{
  }
  const complete=v.complete as boolean;
  if(complete&&(v.stage!=='done'||!payment||!v.recipeId))invalid();
- return {questionnaireVersion,recipeVersion,conceptVersion,...(v.inventoryVersion===undefined?{}:{inventoryVersion}),sequence:v.sequence as number,age:v.age as number,demo:v.demo as boolean,stage:v.stage as ExperiencePayload['stage'],selectedIngredients:v.selectedIngredients as string[],evidence,recipeId:v.recipeId as string|null,child:answers(v.child,childQuestionIds,complete),parent:answers(v.parent,parentQuestionIds,complete),payment,complete};
+ return {questionnaireVersion:v.questionnaireVersion as ExperiencePayload['questionnaireVersion'],recipeVersion,conceptVersion:v.conceptVersion as ExperiencePayload['conceptVersion'],...(v.inventoryVersion===undefined?{}:{inventoryVersion}),sequence:v.sequence as number,age:v.age as number,demo:v.demo as boolean,stage:v.stage as ExperiencePayload['stage'],selectedIngredients:v.selectedIngredients as string[],evidence,recipeId:v.recipeId as string|null,child:answers(v.child,childQuestionIds,complete),parent:answers(v.parent,current?parentQuestionIds:legacyParentQuestionIds,complete,true,current),payment,...(v.gameInput===undefined?{}:{gameInput:v.gameInput as 'camera'|'demo'}),complete};
 }
 type Row={id:string;token_hash:string;sequence:number;payload_hash:string;payload:string;complete:number;receipt:string|null;created_at:string;updated_at:string};
 export class ExperienceStore{
@@ -80,7 +86,7 @@ export class ExperienceStore{
    }
    const receipt=payload.complete?`MG-${randomBytes(6).toString('hex').toUpperCase()}`:null;
    this.db.prepare(`INSERT INTO experience_responses(id,token_hash,sequence,payload_hash,payload,complete,demo,age,child_mode,recipe_id,questionnaire_version,receipt,created_at,updated_at,completed_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET sequence=excluded.sequence,payload_hash=excluded.payload_hash,payload=excluded.payload,complete=excluded.complete,demo=excluded.demo,age=excluded.age,child_mode=excluded.child_mode,recipe_id=excluded.recipe_id,questionnaire_version=excluded.questionnaire_version,receipt=excluded.receipt,updated_at=excluded.updated_at,completed_at=excluded.completed_at`).run(id,tokenHash,payload.sequence,hash,text,Number(payload.complete),Number(payload.demo),payload.age,payload.age<=8?'young-current-experience':'older-kindergarten-hypothetical',payload.recipeId,questionnaireVersion,receipt,previous?.created_at??now,now,payload.complete?now:null);
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET sequence=excluded.sequence,payload_hash=excluded.payload_hash,payload=excluded.payload,complete=excluded.complete,demo=excluded.demo,age=excluded.age,child_mode=excluded.child_mode,recipe_id=excluded.recipe_id,questionnaire_version=excluded.questionnaire_version,receipt=excluded.receipt,updated_at=excluded.updated_at,completed_at=excluded.completed_at`).run(id,tokenHash,payload.sequence,hash,text,Number(payload.complete),Number(payload.demo),payload.age,payload.age<=8?'young-current-experience':'older-kindergarten-hypothetical',payload.recipeId,payload.questionnaireVersion,receipt,previous?.created_at??now,now,payload.complete?now:null);
    this.db.exec('COMMIT');return {saved:true,id,sequence:payload.sequence,complete:payload.complete,receipt};
   }catch(error){this.db.exec('ROLLBACK');throw error;}
  }

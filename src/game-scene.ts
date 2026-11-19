@@ -9,9 +9,10 @@ import { AvatarRenderer } from './avatar-renderer';
 import { challengeSeconds, challengeMaxPairs, catchPoints, challengeScore, type ChallengeResult, type CatchMoment, type PlayVariant } from './challenge';
 
 type Options = { startWhenFramed?:boolean; catalog?: typeof legacyIngredients; schedule?: Pair[]; showPreview?: boolean; autoPrepare?: boolean; localResult?: boolean; input: 'camera' | 'demo'; variant?:PlayVariant; best?:number; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence,challenge?:ChallengeResult) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
-export function mountGame(container: HTMLElement, options: Options) {
+export function mountGame(container: HTMLElement, options: Options & {landscapeOnly?:boolean}) {
   const ingredients = options.catalog ?? legacyIngredients;
   const mode = options.input;
+  const orientationBlocked = () => Boolean(options.landscapeOnly && window.innerHeight > window.innerWidth);
   let framingPending=Boolean(options.startWhenFramed&&mode==='camera');
   const framing=framingPending?new FramingGate():null;
   const challenge=options.variant==='challenge';
@@ -52,6 +53,12 @@ export function mountGame(container: HTMLElement, options: Options) {
   container.innerHTML = `<div class="game-heading"><span class="pill">${mode === 'camera' ? 'すきなほうへ、てをのばそう！' : 'カメラなし・おためし'}</span><span class="game-counter" id="counter">おさら <b>1</b> / ${plateCount}</span></div><section class="field ${mode === 'camera' ? 'camera-field' : ''}" id="field" aria-label="${mode === 'camera' ? '座ったまま手を伸ばして、ふたつのうち ひとつを えらぶ' : '左右にかごを動かして、ふたつのうち ひとつを えらぶ'}"><video id="camera" autoplay muted playsinline class="camera-video avatar-source" ${mode === 'demo' ? 'hidden':''}></video><div class="field-tint"></div><canvas id="game-canvas" tabindex="0" role="img" aria-label="食材キャッチの遊び場"></canvas><div id="tracking-note" class="tracking-note" role="status"></div><div class="game-overlay setup-overlay"><div class="overlay-card"><span class="overlay-icon">${mode === 'camera' ? '🌱' : '🧺'}</span><h2>${mode==='camera'?'すわって、てをのばそう。':'かごを、左右へ。'}</h2><p>${mode==='camera'?'顔と両ひじ・両手が うつるようにしてね。<br>肩より上に手をのばして、すきな食材にタッチ。<br>どっちでも、とらなくても、だいじょうぶ。':'ふたつ おちてくるよ。すきなほうを ひとつ。<br>どっちでも、とらなくても、だいじょうぶ。'}</p><p class="camera-status" id="camera-status" role="status">${mode==='camera'?'映像はこのタブレットの中だけで使います。':'映像は使いません。'}</p>${mode==='camera'?'<button class="button primary" data-game="prepare-camera">カメラを じゅんびする</button>':''}<button class="button primary" id="start-button" data-game="start" ${mode==='camera'?'disabled':''}>はじめる →</button></div></div></section><div class="game-bottom"><div class="caught-strip"><span>きょうの おさら</span><div class="plates" id="plates"></div></div><div class="game-actions"></div></div><p class="game-help">${mode==='camera'?'すわったまま、肩より上に手をのばしてね。手の輪がタッチの目印だよ。':'指・マウスを左右へ / ← → キーでも動かせます。おさらに 3つ のせよう。'}</p>${mode === 'camera' ? '<details class="tracking-debug"><summary>大人向け：カメラと検出の確認</summary><div class="debug-content"><canvas id="pose-debug" width="320" height="240" aria-label="端末内のカメラと肩・肘・手首の検出"></canvas><div><p id="pose-metrics"></p><p>緑の点：検出できています。点が途切れたら、顔と両ひじ・両手が入るようにカメラを調整してください。立ったり歩いたりする必要はありません。</p><p>この映像・点・顔画像は端末内だけで使い、送信・保存しません。</p></div></div></details>' : ''}`;
   const canvas = $<HTMLCanvasElement>('#game-canvas')!;
   const field = $('#field')!;
+  const orientationNotice=document.createElement('section');
+  orientationNotice.className='landscape-notice';orientationNotice.setAttribute('aria-label','端末を横にしてください');
+  orientationNotice.innerHTML='<svg viewBox="0 0 120 100" aria-hidden="true"><rect x="24" y="24" width="72" height="48" rx="7" fill="none" stroke="currentColor" stroke-width="4"/><path d="M20 70C4 42 21 14 47 10m-8-7 10 7-9 9M100 28c17 28 0 56-28 60m9 8-11-8 10-9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h2>端末を横にしてください。</h2><p>ゲームは横画面で遊びます。<br>横にすると、そのまま続けられます。</p><button type="button" class="text-action" data-action="skip-game">ゲームを終了して先に進む</button>';
+  if(options.landscapeOnly)container.append(orientationNotice);
+  function updateOrientation(){const blocked=orientationBlocked();orientationNotice.hidden=!blocked;field.inert=blocked;container.dataset.orientationBlocked=String(blocked);}
+  updateOrientation();
   let updateFraming:((result:ReturnType<FramingGate['sample']>)=>void)|undefined;
   if(framingPending){
     container.classList.add('is-framing');field.classList.add('framing-field');
@@ -100,6 +107,7 @@ export function mountGame(container: HTMLElement, options: Options) {
     if (mode === 'camera') for (const button of container.querySelectorAll<HTMLButtonElement>('[data-game="start"], [data-game="resume"]')) button.disabled = cameraState !== 'ready' || !valid || !assetsReady || !options.canPlay();
   }
   async function prepareCamera() {
+    if(orientationBlocked())return;
     if(cameraState==='loading'||cameraState==='ready')return;
     if(!options.cameraFactory && (!isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
       cameraState='error';cameraMessage='カメラには信頼済みのHTTPSが必要です。大人の画面でカメラなしを選び直すこともできます。';updateTracking();return;
@@ -127,6 +135,7 @@ export function mountGame(container: HTMLElement, options: Options) {
     });
   }
   function beginPlaying() {
+    if(orientationBlocked())return;
     if (disposed || !['setup', 'paused'].includes(phase) || !options.canPlay()) return;
     if (mode === 'camera' && (cameraState !== 'ready' || !assetsReady || !isTracked())) return;
     if(framingPending){framingPending=false;container.classList.remove('is-framing');field.classList.remove('framing-field');$('.game-heading .pill')!.textContent='すきなほうへ、てをのばそう！';}
@@ -182,14 +191,14 @@ export function mountGame(container: HTMLElement, options: Options) {
 function tick(now: number) {
   if (disposed || phase === 'finished' || !canvas || !field) return;
   const dt = lastFrame ? Math.min((now - lastFrame) / 1000, .07) : 0; lastFrame = now;
-  const tracked = mode === 'demo' || (assetsReady && cameraState === 'ready' && isTracked());
+  const tracked = !orientationBlocked() && (mode === 'demo' || (assetsReady && cameraState === 'ready' && isTracked()));
   const layout = avatarLayout(field.clientWidth, field.clientHeight);
   if (mode === 'camera') {
     updateTracking();
     const feedback=trackingStability.sample(performance.now());
     displayedArms = targetArms.map((arm, i) => tracked&&arm.valid ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: feedback.visible&&displayedArms[i].valid, raised: feedback.visible&&displayedArms[i].raised }) as typeof targetArms;
   }
-  if(framingPending&&cameraState==='ready'&&assetsReady&&framing){const result=framing.sample(now,!document.hidden);updateFraming?.(result);if(result.ready)beginPlaying();}
+  if(framingPending&&cameraState==='ready'&&assetsReady&&framing){const result=framing.sample(now,!document.hidden&&!orientationBlocked());updateFraming?.(result);if(result.ready)beginPlaying();}
   const hands = displayedArms.map((arm, i) => placeArm({ ...arm, valid: tracked && arm.valid }, i, layout));
   const note = $('#tracking-note');
   const feedback=trackingStability.sample(performance.now());
@@ -382,7 +391,7 @@ function draw() {
   }
   function pointer(event:PointerEvent){if(mode!=='demo'||!(event.target as HTMLElement).closest('#field')||(event.target as HTMLElement).closest('button'))return;const rect=field.getBoundingClientRect();targetX=Math.max(.09,Math.min(.91,(event.clientX-rect.left)/rect.width));}
   function key(event:KeyboardEvent){if(mode!=='demo'||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();targetX=Math.max(.09,Math.min(.91,targetX+(event.key==='ArrowLeft'?-.07:.07)));}
-  function resize(){ positionGestureButtons(); gestureHold.reset(phase === 'paused'); gestureProgress=0; previousHands = []; wasTracked = false; if(mode === 'camera'){const xs=avatarLayout(field.clientWidth,field.clientHeight).lanes;for(const item of items)item.x=xs[item.x<.5?0:1];}}
+  function resize(){ updateOrientation();if(!orientationBlocked()&&cameraState==='idle'&&options.autoPrepare)void prepareCamera();positionGestureButtons(); gestureHold.reset(phase === 'paused'); gestureProgress=0; previousHands = []; wasTracked = false; if(mode === 'camera'){const xs=avatarLayout(field.clientWidth,field.clientHeight).lanes;for(const item of items)item.x=xs[item.x<.5?0:1];}}
   window.addEventListener('resize',resize);
   function visibility(){if(document.hidden){trackingStability.reset();pause('画面を離れたので、時間を止めたよ。');}}
   container.addEventListener('click',click);container.addEventListener('pointermove',pointer);container.addEventListener('pointerdown',pointer);window.addEventListener('keydown',key);document.addEventListener('visibilitychange',visibility);

@@ -26,11 +26,20 @@ try{
   assert.ok(!/もぐもぐキャッチ|PoC|食べたい気持ちを/.test(introText));
   assert.equal(await page.locator('.app-footer').innerText(),'芝浦工業大学 ビジネスコンテストプロジェクト｜チーム芝');
   assert.equal(await page.locator('main #username').count(),0);
+  assert.equal(await page.locator('h1.intro-title').innerText().then(text=>text.replaceAll('\n','')),title);
+  assert.equal(await page.locator('.experience-steps>li').count(),3);
+  await page.screenshot({path:`${folder}/${name}-intro.png`,fullPage:true});
   await page.locator('[name="age"]').fill(name==='phone'?'5':'16');
   await page.locator('#participant-form button').click();
   await page.locator('[data-action="start-camera-game"]').click();
+  if(viewport.height>viewport.width){
+   await page.locator('.landscape-notice').waitFor({state:'visible'});
+   await page.setViewportSize({width:viewport.height,height:viewport.width});
+  }
+  await page.getByText('カメラが許可されていません。大人の人に確認してね。',{exact:true}).waitFor();
   await page.locator('[data-action="demo-game"]').click();
   await page.locator('[data-game="start"]').click();await page.locator('[data-game="finish"]').click();
+  await page.setViewportSize(viewport);
   await page.locator('[data-action="go"][data-stage="handoff"]').click();
   await page.locator('[data-action="go"][data-stage="recipes"]').click();
   await page.locator('main[data-screen="recipes"]').waitFor();await layout(page);
@@ -70,10 +79,12 @@ try{
   for(const question of ['game_fun','help_intent','daily_feasibility'])await page.locator(`input[name="${question}"][value="6"]`).check();
   await page.locator('textarea[name="comment"]').fill(`demo ${name} child`);
   await layout(page);await page.locator('#survey-form button[type="submit"]').click();
-  for(const question of ['task_feasibility','continued_use'])await page.locator(`input[name="${question}"][value="5"]`).check();
+  for(const question of ['task_feasibility','continued_use','meal_decision_ease','child_initiative'])await page.locator(`input[name="${question}"][value="5"]`).check();
+  await page.locator('input[name="gameplayStatus"][value="issues_completed"]').check();
   await page.locator('textarea[name="comment"]').fill(`demo ${name} parent`);
   await layout(page);await page.locator('#survey-form button[type="submit"]').click();
   assert.equal(await page.locator('.concept-card').count(),5);await layout(page);
+  await page.screenshot({path:`${folder}/${name}-concept.png`,fullPage:true});
   await page.locator('[data-action="market-next"]').click();
   await page.locator('input[name="budgetKind"][value="free"]').check();
   await layout(page);
@@ -90,6 +101,7 @@ try{
   assert.equal(response.status(),200);const record=await response.json();
   assert.equal(record.complete,true);assert.equal(record.payload.inventoryVersion,inventoryVersion);assert.equal(record.payload.demo,true);
   assert.equal(record.payload.recipeId,'nikujaga');assert.equal(record.payload.child.comment,`demo ${name} child`);assert.equal(record.payload.parent.answers.continued_use,5);
+  assert.equal(record.payload.questionnaireVersion,'poc-2026-11-19-v2');assert.equal(record.payload.parent.answers.meal_decision_ease,5);assert.equal(record.payload.parent.answers.child_initiative,5);assert.equal(record.payload.parent.gameplayStatus,'issues_completed');assert.equal(record.payload.gameInput,'demo');
   await page.reload();await page.locator('main[data-screen="done"] .receipt').waitFor();assert.equal(await page.locator('.receipt').innerText(),receipt);
   await page.screenshot({path:`${folder}/${name}-saved.png`});
   checks.push(`${name}: 12 recipes, all illustrated steps, stock groups/materials, survey and server receipt${name==='phone'?', offline retry':''}`);
