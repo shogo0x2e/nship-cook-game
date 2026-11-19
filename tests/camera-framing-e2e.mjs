@@ -32,6 +32,25 @@ try{
  await denied.locator('[data-game="finish"]').click();
  await denied.waitForFunction(()=>document.querySelector('main')?.dataset.screen==='result');
  check('one-button entry, recoverable camera denial and camera-free fallback in the public experience');
+ for(const hash of ['', '#game', '#camera']){
+  await denied.evaluate(()=>{
+   const key='cookgame-experience-v1-demo',saved=JSON.parse(localStorage.getItem(key));
+   saved.stage='game';saved.gameInput='camera';saved.gameFinished=false;
+   saved.surveys.child.comment='再読み込み後にも保持するテスト回答';
+   localStorage.setItem(key,JSON.stringify(saved));
+  });
+  await denied.goto(`${base}/?demo=1${hash}`);
+  await denied.reload();
+  await denied.locator('main[data-screen="intro"]').waitFor();
+  assert.equal(await denied.locator('#native-game, #camera').count(),0);
+  assert.equal(await denied.locator('[name="age"]').inputValue(),'5');
+  assert.equal(await denied.evaluate(()=>JSON.parse(localStorage.getItem('cookgame-experience-v1-demo')).surveys.child.comment),'再読み込み後にも保持するテスト回答');
+ }
+ // A restored history entry is also navigation, not a fresh start-button press.
+ await denied.evaluate(()=>{location.hash='game';});
+ await denied.waitForFunction(()=>location.hash==='#intro');
+ assert.equal(await denied.locator('#native-game').count(),0);
+ check('reopening the root, camera/game URLs or game history shows the PoC explanation without starting a camera or losing answers');
  await denied.close();
 
  for(const [name,viewport] of Object.entries({phone:{width:360,height:800},tablet:{width:820,height:1180},desktop:{width:1440,height:1000}})){

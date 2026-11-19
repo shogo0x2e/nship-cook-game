@@ -58,6 +58,7 @@ try {
 } catch { /* Session storage is optional in this local prototype. */ }
 let nativeGame = null;
 let gameMountGeneration=0;
+let gameEntryRequested=false;
 let sending = false;
 let sendError = '';
 let draftTimer;
@@ -264,14 +265,17 @@ function doneView() {
 }
 
 function render() {
-  let stage = production && state.finalPacket ? (state.receipt ? 'done' : 'parent-survey') : routeId() || state.stage;
+  let stage = production && state.finalPacket ? (state.receipt ? 'done' : 'parent-survey') : routeId() || (production ? 'intro' : state.stage);
   stage = ({ help: 'recipe', 'child-recipe': 'child-task' })[stage] ?? stage;
   if (!stages.some(item => item.id === stage)) stage = 'intro';
   if (stage !== 'intro' && !participantComplete(state.participant)) stage = 'intro';
   if (['recipe', 'child-task'].includes(stage) && !recipeNow()) stage = 'recipes';
+  // A restored URL or browser history must never activate the camera by itself.
+  if (production && stage === 'game' && !gameEntryRequested) stage = 'intro';
   if (production && stage === 'game' && state.gameFinished) stage = 'result';
   if (!production && stage === 'game' && state.caught.length >= foodPairs.length) stage = 'result';
   if (nativeGame) { nativeGame.destroy(); nativeGame = null; }
+  if (stage !== 'game') gameEntryRequested=false;
   const generation=++gameMountGeneration;
   state.stage = stage;
   if (routeId() !== stage) history.replaceState(null, '', `#${stage}`);
@@ -315,8 +319,8 @@ document.addEventListener('click', event => {
   if (action === 'review') reviewJump(target.dataset.stage);
   if (action === 'sample') { const participant = state.participant; state = freshState(); state.participant = participant; sample(); go('recipes'); }
   if (action === 'reset') { nativeGame?.destroy();nativeGame=null; state = freshState(); storageNotice = ''; go('intro'); }
-  if (action === 'start-camera-game') {state.caught=[];state.evidence={};state.gameFinished=false;state.score=0;state.recipeId=null;state.gameInput='camera';go('game');}
-  if (action === 'demo-game') { state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = 'demo'; go('game'); }
+  if (action === 'start-camera-game') {gameEntryRequested=true;state.caught=[];state.evidence={};state.gameFinished=false;state.score=0;state.recipeId=null;state.gameInput='camera';go('game');}
+  if (action === 'demo-game') { gameEntryRequested=true;state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = 'demo'; go('game'); }
   if (action === 'market-back') { state.market.step = target.dataset.step; save(); render(); }
   if (action === 'market-next') { state.market.step = 'budget'; save(); render(); }
   if (action === 'review-market') { state.market.step = 'concept'; go('parent-survey'); }
@@ -397,5 +401,8 @@ document.querySelector('#flow-toggle').addEventListener('click', event => {
 window.addEventListener('hashchange', render);
 window.addEventListener('pagehide', () => { gameMountGeneration++;nativeGame?.destroy(); });
 if (production) runtime.onSaved(acceptSaved);
+// Reopening the entry or a previous camera/game URL starts at the PoC explanation.
+// Submitted answers and any pending final submission retain their recovery flow.
+if (production && !state.finalPacket && ['', 'camera', 'game'].includes(routeId())) history.replaceState(null, '', '#intro');
 render();
 if (production) { if (state.finalPacket && !state.receipt) void submitFinal(); void runtime.flushOutbox(); }
