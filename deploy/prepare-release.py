@@ -84,6 +84,9 @@ def verify_image(image, revision):
         assets = json.loads(Path('src/experience-data.json').read_text())
         paths = [r['image'] for r in assets['recipes']] + list({r['tasks'][0]['photo'] for r in assets['recipes']})
         paths += ['/experience/assets/concept-' + slug + '.webp' for slug in ['game-recipe', 'food-learning', 'challenge-feedback', 'expert-recipes', 'family-schedule']]
+        flow_photos = json.loads(Path('design/recipe-prototype/flow-photo-data.json').read_text())
+        paths += sorted({step['photo'] for recipe in flow_photos['recipes'].values() for step in recipe.values()})
+        paths += ['/experience/assets/household-fridge-v1.webp']
         for path in paths:
             with urllib.request.urlopen(urllib.request.Request(base + path, headers={'Host': 'localhost:8787'}), timeout=5) as response:
                 assert response.headers['Content-Type'] == 'image/webp' and response.read(4) == b'RIFF', path

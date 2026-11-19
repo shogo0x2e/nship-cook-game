@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { AccountStore } from '../server/account-store.ts';
 import { ExperienceStore } from '../server/experience-store.ts';
 import { createSessionServer } from '../server/server.ts';
-import { questionnaireVersion, recipeVersion, conceptVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
+import { questionnaireVersion, recipeVersion, conceptVersion, inventoryVersion, type ExperiencePayload } from '../src/experience-protocol.ts';
 const payload=(complete=false):ExperiencePayload=>({questionnaireVersion,recipeVersion,conceptVersion,sequence:1,age:8,demo:true,stage:complete?'done':'child-survey',selectedIngredients:['rice','carrot'],evidence:{rice:{offered:1,caught:1},carrot:{offered:1,caught:1}},recipeId:'curry',child:{answers:{game_fun:7,help_intent:6,daily_feasibility:4},comment:'こどもの感想'},parent:{answers:complete?{task_feasibility:6,continued_use:5}:{},comment:''},payment:complete?{kind:'free',maxMonthlyYen:0}:null,complete});
 const status=(code:number)=>(error:unknown)=>error instanceof Error&&'status' in error&&error.status===code;
 test('anonymous response is durable, private, idempotent, and final answers cannot be replaced by delayed drafts',async()=>{
@@ -34,6 +34,19 @@ test('response validation rejects media, unknown scores, mismatched versions and
   const noUse=store.save(randomUUID(),key,{...payload(true),payment:{kind:'no_use',maxMonthlyYen:null}});assert.equal(noUse.complete,true);
  }finally{accounts.close();}
 });
+test('inventory presentation metadata is saved without invalidating queued answers from earlier releases',()=>{
+ const accounts=new AccountStore();const store=new ExperienceStore(accounts.db);
+ try{
+  const key=randomBytes(32).toString('hex'),oldId=randomUUID(),newId=randomUUID();
+  const old=payload(true),current={...payload(true),inventoryVersion};
+  const oldAck=store.save(oldId,key,old);
+  assert.equal(store.save(oldId,key,old).receipt,oldAck.receipt);
+  assert.deepEqual(store.get(oldId,key).payload,old);
+  store.save(newId,key,current);
+  assert.deepEqual(store.get(newId,key).payload,current);
+  assert.throws(()=>store.save(randomUUID(),key,{...current,inventoryVersion:'unrecognized'}),status(400));
+ }finally{accounts.close();}
+});
 test('public survey API requires a private experience key and same-origin writes; no public listing',async()=>{
  const app=await createSessionServer({port:0});await app.listen();const base=`http://127.0.0.1:${(app.server.address() as {port:number}).port}`;const id=randomUUID(),key=randomBytes(32).toString('hex');
  const put=(origin=base,token=key,extra:Record<string,unknown>={})=>fetch(`${base}/api/experiences/${id}`,{method:'PUT',headers:{Origin:origin,Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({...payload(true),...extra})});
@@ -53,12 +66,12 @@ test('operator exports exclude demo/drafts and safely preserve optional comments
  const dir=await mkdtemp(join(tmpdir(),'cookgame-export-'));const path=join(dir,'cookgame.sqlite');
  try{
   const accounts=new AccountStore(path);const store=new ExperienceStore(accounts.db);
-  const complete=payload(true);complete.demo=false;complete.parent.comment='=HYPERLINK("bad")\n自由記述';complete.payment={kind:'paid',maxMonthlyYen:500};
+  const complete=payload(true);complete.inventoryVersion=inventoryVersion;complete.demo=false;complete.parent.comment='=HYPERLINK("bad")\n自由記述';complete.payment={kind:'paid',maxMonthlyYen:500};
   store.save(randomUUID(),randomBytes(32).toString('hex'),complete);
   store.save(randomUUID(),randomBytes(32).toString('hex'),payload(true));
   const draft=payload();draft.demo=false;store.save(randomUUID(),randomBytes(32).toString('hex'),draft);accounts.close();
   const summary=JSON.parse(execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path],{encoding:'utf8'}));
-  assert.equal(summary.count,1);assert.equal(summary.paidMaxMonthlyYen.median,500);assert.equal(summary.likert['young-current-experience'].scores.game_fun.n,1);
+  assert.equal(summary.count,1);assert.equal(summary.byInventoryVersion[inventoryVersion],1);assert.equal(summary.paidMaxMonthlyYen.median,500);assert.equal(summary.likert['young-current-experience'].scores.game_fun.n,1);
   const csv=join(dir,'answers.csv');execFileSync(process.execPath,['scripts/export-surveys.mjs','--db',path,'--format','csv','--out',csv]);
   const text=await readFile(csv,'utf8');assert.ok(text.startsWith('\ufeff'));assert.ok(text.includes("'=HYPERLINK"));assert.equal((await stat(csv)).mode&0o777,0o600);
  }finally{await rm(dir,{recursive:true,force:true});}

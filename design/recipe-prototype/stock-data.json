@@ -1,0 +1,1184 @@
+{
+  "version": "household-stock-2026-11-19-v1",
+  "items": {
+    "rice": {
+      "name": "ごはん",
+      "kind": "food",
+      "present": true
+    },
+    "steamed-noodles": {
+      "name": "中華麺（蒸し）",
+      "kind": "food",
+      "present": true
+    },
+    "pork-belly": {
+      "name": "豚バラ肉",
+      "kind": "food",
+      "present": true
+    },
+    "pork-sliced": {
+      "name": "豚薄切り肉",
+      "kind": "food",
+      "present": true
+    },
+    "onion": {
+      "name": "玉ねぎ",
+      "kind": "food",
+      "present": true
+    },
+    "carrot": {
+      "name": "にんじん",
+      "kind": "food",
+      "present": true
+    },
+    "potato": {
+      "name": "じゃがいも",
+      "kind": "food",
+      "present": true
+    },
+    "cabbage": {
+      "name": "キャベツ",
+      "kind": "food",
+      "present": true
+    },
+    "pepper": {
+      "name": "ピーマン",
+      "kind": "food",
+      "present": true
+    },
+    "egg": {
+      "name": "たまご",
+      "kind": "food",
+      "present": true
+    },
+    "bread": {
+      "name": "食パン",
+      "kind": "food",
+      "present": true
+    },
+    "sandwich-bread": {
+      "name": "サンドイッチ用食パン",
+      "kind": "food",
+      "present": true
+    },
+    "beef": {
+      "name": "牛肉（角切り）",
+      "kind": "food",
+      "present": false
+    },
+    "mixed-mince": {
+      "name": "合いびき肉",
+      "kind": "food",
+      "present": false
+    },
+    "chicken": {
+      "name": "鶏もも肉",
+      "kind": "food",
+      "present": false
+    },
+    "salmon": {
+      "name": "鮭",
+      "kind": "food",
+      "present": false
+    },
+    "sprouts": {
+      "name": "もやし",
+      "kind": "food",
+      "present": false
+    },
+    "udon": {
+      "name": "冷凍うどん",
+      "kind": "food",
+      "present": false
+    },
+    "leek": {
+      "name": "ねぎ",
+      "kind": "food",
+      "present": false
+    },
+    "shimeji": {
+      "name": "しめじ",
+      "kind": "food",
+      "present": false
+    },
+    "enoki": {
+      "name": "えのきたけ",
+      "kind": "food",
+      "present": false
+    },
+    "mitsuba": {
+      "name": "三つ葉",
+      "kind": "food",
+      "present": false
+    },
+    "green-onion": {
+      "name": "青ねぎ",
+      "kind": "food",
+      "present": false
+    },
+    "lemon": {
+      "name": "レモン",
+      "kind": "food",
+      "present": false
+    },
+    "garlic": {
+      "name": "にんにく",
+      "kind": "food",
+      "present": false
+    },
+    "mushroom": {
+      "name": "マッシュルーム",
+      "kind": "food",
+      "present": false
+    },
+    "green-bean": {
+      "name": "さやいんげん",
+      "kind": "food",
+      "present": false
+    },
+    "tomato": {
+      "name": "トマト",
+      "kind": "food",
+      "present": false
+    },
+    "canned-tomato": {
+      "name": "カットトマト",
+      "kind": "food",
+      "present": false
+    },
+    "ham": {
+      "name": "ハム",
+      "kind": "food",
+      "present": false
+    },
+    "parmesan": {
+      "name": "粉チーズ",
+      "kind": "food",
+      "present": false
+    },
+    "roux": {
+      "name": "カレールウ",
+      "kind": "pantry",
+      "present": true
+    },
+    "milk": {
+      "name": "牛乳",
+      "kind": "pantry",
+      "present": true
+    },
+    "breadcrumbs": {
+      "name": "パン粉",
+      "kind": "pantry",
+      "present": true
+    },
+    "oil": {
+      "name": "サラダ油",
+      "kind": "seasoning",
+      "present": true
+    },
+    "soy": {
+      "name": "しょうゆ",
+      "kind": "seasoning",
+      "present": true
+    },
+    "sugar": {
+      "name": "砂糖",
+      "kind": "seasoning",
+      "present": true
+    },
+    "mirin": {
+      "name": "みりん",
+      "kind": "seasoning",
+      "present": true
+    },
+    "salt": {
+      "name": "塩",
+      "kind": "seasoning",
+      "present": true
+    },
+    "pepper-spice": {
+      "name": "こしょう",
+      "kind": "seasoning",
+      "present": true
+    },
+    "butter": {
+      "name": "バター",
+      "kind": "seasoning",
+      "present": true
+    },
+    "worcestershire": {
+      "name": "ウスターソース",
+      "kind": "seasoning",
+      "present": true
+    },
+    "ketchup": {
+      "name": "ケチャップ",
+      "kind": "seasoning",
+      "present": true
+    },
+    "sesame-oil": {
+      "name": "ごま油",
+      "kind": "seasoning",
+      "present": true
+    },
+    "white-dashi": {
+      "name": "白だし",
+      "kind": "seasoning",
+      "present": true
+    },
+    "tsuyu": {
+      "name": "めんつゆ",
+      "kind": "seasoning",
+      "present": true
+    },
+    "ponzu": {
+      "name": "ぽん酢",
+      "kind": "seasoning",
+      "present": true
+    },
+    "miso": {
+      "name": "液みそ",
+      "kind": "seasoning",
+      "present": true
+    },
+    "sake": {
+      "name": "料理酒",
+      "kind": "seasoning",
+      "present": true
+    },
+    "olive-oil": {
+      "name": "オリーブオイル",
+      "kind": "seasoning",
+      "present": true
+    },
+    "mayonnaise": {
+      "name": "マヨネーズ",
+      "kind": "seasoning",
+      "present": true
+    },
+    "dashi": {
+      "name": "かつおだし",
+      "kind": "seasoning",
+      "present": true
+    },
+    "nutmeg": {
+      "name": "ナツメグ",
+      "kind": "seasoning",
+      "present": false
+    },
+    "red-wine": {
+      "name": "赤ワイン",
+      "kind": "seasoning",
+      "present": false
+    },
+    "pizza-sauce": {
+      "name": "ピザソース",
+      "kind": "seasoning",
+      "present": false
+    },
+    "water": {
+      "name": "水",
+      "kind": "utility",
+      "present": true
+    }
+  },
+  "recipeMaterials": {
+    "curry": [
+      {
+        "key": "roux",
+        "name": "カレールウ（バーモントカレー甘口）",
+        "amount": "115g",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "beef",
+        "name": "牛肉（角切り）",
+        "amount": "250g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "onion",
+        "name": "玉ねぎ",
+        "amount": "中2個（400g）",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "potato",
+        "name": "じゃがいも",
+        "amount": "中1と1/2個（230g）",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "中1/2本（100g）",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "oil",
+        "name": "サラダ油",
+        "amount": "大さじ1",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "water",
+        "name": "水",
+        "amount": "850ml（ふたをする場合750ml）",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "rice",
+        "name": "ごはん",
+        "amount": "1200g",
+        "source": [
+          7
+        ]
+      }
+    ],
+    "nikujaga": [
+      {
+        "key": "potato",
+        "name": "じゃがいも",
+        "amount": "3〜4個（400g）",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "pork-sliced",
+        "name": "豚薄切り肉",
+        "amount": "150g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "onion",
+        "name": "玉ねぎ",
+        "amount": "1個（200g）",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "80g",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "oil",
+        "name": "サラダ油",
+        "amount": "大さじ1",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "water",
+        "name": "水",
+        "amount": "1カップ",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "soy",
+        "name": "しょうゆ",
+        "amount": "下味：大さじ1／煮汁：大さじ3",
+        "source": [
+          6,
+          7
+        ]
+      },
+      {
+        "key": "sugar",
+        "name": "砂糖",
+        "amount": "下味：大さじ1／煮汁：大さじ1",
+        "source": [
+          6,
+          7
+        ]
+      },
+      {
+        "key": "mirin",
+        "name": "みりん",
+        "amount": "煮汁：大さじ3",
+        "source": [
+          7
+        ]
+      }
+    ],
+    "hamburger": [
+      {
+        "key": "mixed-mince",
+        "name": "合いびき肉",
+        "amount": "200g",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "onion",
+        "name": "玉ねぎ",
+        "amount": "みじん切り50g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "butter",
+        "name": "バター",
+        "amount": "玉ねぎ加熱用・ソース・つけ合わせ用：各小さじ1",
+        "source": [
+          1,
+          6,
+          8
+        ]
+      },
+      {
+        "key": "egg",
+        "name": "たまご",
+        "amount": "1/2個分",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "salt",
+        "name": "塩",
+        "amount": "肉だね・つけ合わせ用：各少々",
+        "source": [
+          3,
+          8
+        ]
+      },
+      {
+        "key": "pepper-spice",
+        "name": "こしょう",
+        "amount": "肉だね・つけ合わせ用：各少々",
+        "source": [
+          3,
+          8
+        ]
+      },
+      {
+        "key": "nutmeg",
+        "name": "ナツメグ",
+        "amount": "少々",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "soy",
+        "name": "しょうゆ",
+        "amount": "肉だね・ソース：各小さじ1／つけ合わせ用：小さじ1/2",
+        "source": [
+          3,
+          6,
+          8
+        ]
+      },
+      {
+        "key": "breadcrumbs",
+        "name": "パン粉",
+        "amount": "大さじ3",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "milk",
+        "name": "牛乳",
+        "amount": "大さじ2",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "oil",
+        "name": "サラダ油",
+        "amount": "小さじ1",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "worcestershire",
+        "name": "ウスターソース",
+        "amount": "ソース：大さじ1",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "red-wine",
+        "name": "赤ワイン",
+        "amount": "ソース：大さじ2",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "ketchup",
+        "name": "ケチャップ",
+        "amount": "ソース：大さじ3",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "つけ合わせ：80g",
+        "source": [
+          7
+        ]
+      },
+      {
+        "key": "green-bean",
+        "name": "さやいんげん",
+        "amount": "つけ合わせ：50g",
+        "source": [
+          7
+        ]
+      },
+      {
+        "key": "sugar",
+        "name": "砂糖",
+        "amount": "つけ合わせ用：少々",
+        "source": [
+          8
+        ]
+      }
+    ],
+    "oyakodon": [
+      {
+        "key": "chicken",
+        "name": "鶏もも肉",
+        "amount": "1/2枚",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "onion",
+        "name": "玉ねぎ",
+        "amount": "1/2個",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "egg",
+        "name": "たまご",
+        "amount": "3個",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "rice",
+        "name": "ごはん",
+        "amount": "丼2杯分",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "mitsuba",
+        "name": "三つ葉",
+        "amount": "適宜",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "soy",
+        "name": "しょうゆ",
+        "amount": "大さじ2",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "mirin",
+        "name": "みりん",
+        "amount": "大さじ1",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "sugar",
+        "name": "砂糖",
+        "amount": "大さじ1/2",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "dashi",
+        "name": "かつおだし",
+        "amount": "150ml",
+        "source": [
+          6
+        ]
+      }
+    ],
+    "fried-rice": [
+      {
+        "key": "leek",
+        "name": "ねぎ",
+        "amount": "1本（正味100g）",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "1/4本",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "rice",
+        "name": "ごはん",
+        "amount": "1合分",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "egg",
+        "name": "たまご",
+        "amount": "3個",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "sesame-oil",
+        "name": "ごま油",
+        "amount": "大さじ2",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "white-dashi",
+        "name": "白だし（旨みひろがる香り白だし）",
+        "amount": "大さじ3",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "pepper-spice",
+        "name": "こしょう",
+        "amount": "少々",
+        "source": [
+          6
+        ]
+      }
+    ],
+    "yakisoba": [
+      {
+        "key": "steamed-noodles",
+        "name": "中華麺（蒸し）",
+        "amount": "2玉",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "pork-belly",
+        "name": "豚バラ肉",
+        "amount": "100g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "cabbage",
+        "name": "キャベツ",
+        "amount": "120g",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "pepper",
+        "name": "ピーマン",
+        "amount": "1個",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "1/4本",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "sprouts",
+        "name": "もやし",
+        "amount": "60g",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "oil",
+        "name": "サラダ油",
+        "amount": "大さじ1",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "worcestershire",
+        "name": "ウスターソース",
+        "amount": "大さじ4",
+        "source": [
+          7
+        ]
+      }
+    ],
+    "yakiudon": [
+      {
+        "key": "udon",
+        "name": "冷凍うどん",
+        "amount": "2玉",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "pork-belly",
+        "name": "豚バラ肉",
+        "amount": "100g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "cabbage",
+        "name": "キャベツ",
+        "amount": "120g",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "60g",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "leek",
+        "name": "ねぎ",
+        "amount": "正味50g",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "shimeji",
+        "name": "しめじ",
+        "amount": "60g",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "oil",
+        "name": "サラダ油",
+        "amount": "大さじ1",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "tsuyu",
+        "name": "めんつゆ（濃縮4倍の本つゆ）",
+        "amount": "大さじ3",
+        "source": [
+          7
+        ]
+      },
+      {
+        "key": "pepper-spice",
+        "name": "こしょう",
+        "amount": "少々",
+        "source": [
+          8
+        ]
+      }
+    ],
+    "salmon-foil": [
+      {
+        "key": "salmon",
+        "name": "生鮭",
+        "amount": "2切れ",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "enoki",
+        "name": "えのきたけ",
+        "amount": "30g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "shimeji",
+        "name": "しめじ",
+        "amount": "30g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "5cm",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "salt",
+        "name": "塩",
+        "amount": "少々",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "pepper-spice",
+        "name": "こしょう",
+        "amount": "少々",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "mirin",
+        "name": "みりん",
+        "amount": "大さじ2",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "butter",
+        "name": "バター",
+        "amount": "10g",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "ponzu",
+        "name": "ぽん酢",
+        "amount": "小さじ2",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "green-onion",
+        "name": "青ねぎ",
+        "amount": "適宜",
+        "source": [
+          7
+        ]
+      },
+      {
+        "key": "lemon",
+        "name": "レモン",
+        "amount": "適宜",
+        "source": [
+          7
+        ]
+      }
+    ],
+    "salmon-cabbage": [
+      {
+        "key": "salmon",
+        "name": "鮭",
+        "amount": "4切れ（各80g）",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "cabbage",
+        "name": "キャベツ",
+        "amount": "400g",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "sprouts",
+        "name": "もやし",
+        "amount": "1袋",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "carrot",
+        "name": "にんじん",
+        "amount": "1/3本",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "pepper",
+        "name": "ピーマン",
+        "amount": "2個",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "miso",
+        "name": "液みそ（料亭の味）",
+        "amount": "大さじ2",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "sake",
+        "name": "料理酒",
+        "amount": "大さじ1",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "sugar",
+        "name": "砂糖",
+        "amount": "小さじ2",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "oil",
+        "name": "サラダ油",
+        "amount": "小さじ2",
+        "source": [
+          7
+        ]
+      }
+    ],
+    "egg-sandwich": [
+      {
+        "key": "sandwich-bread",
+        "name": "サンドイッチ用食パン",
+        "amount": "4枚",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "egg",
+        "name": "たまご",
+        "amount": "固ゆで卵2個",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "salt",
+        "name": "塩",
+        "amount": "少々",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "mayonnaise",
+        "name": "マヨネーズ",
+        "amount": "大さじ2／パンにぬる分：適量",
+        "source": [
+          3,
+          4
+        ]
+      }
+    ],
+    "chicken-tomato": [
+      {
+        "key": "chicken",
+        "name": "鶏もも肉",
+        "amount": "1枚",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "pepper",
+        "name": "ピーマン",
+        "amount": "2個",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "garlic",
+        "name": "にんにく",
+        "amount": "1片",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "onion",
+        "name": "玉ねぎ",
+        "amount": "1個",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "mushroom",
+        "name": "マッシュルーム",
+        "amount": "8個",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "canned-tomato",
+        "name": "カットトマト",
+        "amount": "388g",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "olive-oil",
+        "name": "オリーブオイル",
+        "amount": "大さじ2",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "salt",
+        "name": "塩",
+        "amount": "適量",
+        "source": [
+          7
+        ]
+      },
+      {
+        "key": "pepper-spice",
+        "name": "こしょう",
+        "amount": "少々",
+        "source": [
+          7
+        ]
+      }
+    ],
+    "pizza-toast": [
+      {
+        "key": "bread",
+        "name": "食パン",
+        "amount": "2枚",
+        "source": [
+          0
+        ]
+      },
+      {
+        "key": "tomato",
+        "name": "トマト",
+        "amount": "1個",
+        "source": [
+          1
+        ]
+      },
+      {
+        "key": "pepper",
+        "name": "ピーマン",
+        "amount": "1個",
+        "source": [
+          2
+        ]
+      },
+      {
+        "key": "onion",
+        "name": "玉ねぎ",
+        "amount": "1/4個",
+        "source": [
+          3
+        ]
+      },
+      {
+        "key": "ham",
+        "name": "ハム",
+        "amount": "2枚",
+        "source": [
+          4
+        ]
+      },
+      {
+        "key": "pizza-sauce",
+        "name": "ピザソース",
+        "amount": "大さじ4",
+        "source": [
+          5
+        ]
+      },
+      {
+        "key": "parmesan",
+        "name": "粉チーズ",
+        "amount": "大さじ1",
+        "source": [
+          6
+        ]
+      },
+      {
+        "key": "oil",
+        "name": "サラダ油",
+        "amount": "小さじ1/2〜1",
+        "source": [
+          7
+        ]
+      }
+    ]
+  }
+}

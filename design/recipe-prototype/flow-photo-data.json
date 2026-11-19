@@ -1,0 +1,213 @@
+{
+  "version": "illustrated-flow-2026-11-19-v1",
+  "recipes": {
+    "curry": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-prep-onion-v1.webp",
+        "photoAlt": "大人が玉ねぎの外皮を少し起こして準備する様子"
+      },
+      "材料を切り、炒める": {
+        "photo": "/experience/assets/flow-curry-saute-v1.webp",
+        "photoAlt": "大人が牛肉とじゃがいも・玉ねぎ・にんじんを炒める様子"
+      },
+      "野菜がやわらかくなるまで煮る": {
+        "photo": "/experience/assets/flow-curry-simmer-v1.webp",
+        "photoAlt": "牛肉と野菜を水で煮ながらアクを取る様子"
+      },
+      "火を止めてルウを溶かす": {
+        "photo": "/experience/assets/flow-curry-roux-v1.webp",
+        "photoAlt": "火を止めた鍋にカレールウを溶かす様子"
+      }
+    },
+    "nikujaga": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-nikujaga-preparation-v1.webp",
+        "photoAlt": "大人がじゃがいもの状態を確認し、水を入れたボウルを用意する様子"
+      },
+      "肉に下味をつけ、野菜を切る": {
+        "photo": "/experience/assets/flow-nikujaga-cut-season-v1.webp",
+        "photoAlt": "大人がじゃがいもを切り、別のボウルに下味をつけた豚肉を用意する様子"
+      },
+      "じゃがいもと玉ねぎから炒める": {
+        "photo": "/experience/assets/flow-nikujaga-saute-v1.webp",
+        "photoAlt": "大人が鍋でじゃがいもと玉ねぎを炒める様子"
+      },
+      "煮汁を加えて煮て、蒸らす": {
+        "photo": "/experience/assets/flow-nikujaga-simmer-v1.webp",
+        "photoAlt": "煮えた肉じゃがにふたをして蒸らす様子"
+      }
+    },
+    "hamburger": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-prep-onion-v1.webp",
+        "photoAlt": "大人が玉ねぎの外皮を少し起こして準備する様子"
+      },
+      "玉ねぎを加熱して冷ます": {
+        "photo": "/experience/assets/flow-hamburger-onion-v1.webp",
+        "photoAlt": "大人が加熱したみじん切り玉ねぎを冷ます様子"
+      },
+      "肉だねを混ぜ、形を整えて焼く": {
+        "photo": "/experience/assets/flow-hamburger-grill-v1.webp",
+        "photoAlt": "大人が成形したハンバーグをフライパンで焼く様子"
+      },
+      "ソースとつけ合わせを仕上げる": {
+        "photo": "/experience/assets/flow-hamburger-sauce-v1.webp",
+        "photoAlt": "大人がハンバーグのソースとにんじん・いんげんを仕上げる様子"
+      }
+    },
+    "oyakodon": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-prep-onion-v1.webp",
+        "photoAlt": "大人が玉ねぎの外皮を少し起こして準備する様子"
+      },
+      "鶏肉と玉ねぎを切り、卵を溶く": {
+        "photo": "/experience/assets/flow-oyakodon-prep-v1.webp",
+        "photoAlt": "大人が親子丼用の玉ねぎを切り、鶏肉と溶き卵を用意する様子"
+      },
+      "煮汁で鶏肉と玉ねぎを煮る": {
+        "photo": "/experience/assets/flow-oyakodon-simmer-v1.webp",
+        "photoAlt": "大人が煮汁で鶏肉と玉ねぎを煮る様子"
+      },
+      "卵を加え、ご飯にのせる": {
+        "photo": "/experience/assets/flow-oyakodon-egg-v1.webp",
+        "photoAlt": "十分に加熱した鶏肉と卵をご飯にのせる様子"
+      }
+    },
+    "fried-rice": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-fried-rice-prep-v1.webp",
+        "photoAlt": "大人がご飯の粗熱を取って用意する様子"
+      },
+      "野菜を切り、卵を準備する": {
+        "photo": "/experience/assets/flow-fried-rice-ingredients-v1.webp",
+        "photoAlt": "大人が刻んだ野菜を用意し、ご飯に溶き卵を混ぜる様子"
+      },
+      "野菜と残りの卵を炒める": {
+        "photo": "/experience/assets/flow-fried-rice-egg-v1.webp",
+        "photoAlt": "大人がにんじん・ねぎと残りの卵を炒める様子"
+      },
+      "ご飯を加えて炒め、味つけする": {
+        "photo": "/experience/assets/flow-fried-rice-finish-v1.webp",
+        "photoAlt": "大人がご飯を加えてチャーハンを炒め合わせる様子"
+      }
+    },
+    "yakisoba": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-prep-cabbage-v1.webp",
+        "photoAlt": "大人が洗ったキャベツの葉から硬い芯を取り除く様子"
+      },
+      "残りの野菜と肉を切る": {
+        "photo": "/experience/assets/flow-yakisoba-cut-v1.webp",
+        "photoAlt": "大人が焼きそば用のにんじんとピーマンを切る様子"
+      },
+      "肉と野菜を炒める": {
+        "photo": "/experience/assets/flow-yakisoba-saute-v1.webp",
+        "photoAlt": "大人が豚肉とキャベツなどの野菜を炒める様子"
+      },
+      "麺とソースを合わせる": {
+        "photo": "/experience/assets/flow-yakisoba-noodles-v1.webp",
+        "photoAlt": "大人が中華麺とソースを具材に炒め合わせる様子"
+      }
+    },
+    "yakiudon": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-prep-cabbage-v1.webp",
+        "photoAlt": "大人が洗ったキャベツの葉から硬い芯を取り除く様子"
+      },
+      "うどんと材料を準備する": {
+        "photo": "/experience/assets/flow-yakiudon-prep-v1.webp",
+        "photoAlt": "大人が焼きうどんの野菜としめじ・うどんを用意する様子"
+      },
+      "肉と具材を炒める": {
+        "photo": "/experience/assets/flow-yakiudon-saute-v1.webp",
+        "photoAlt": "大人が豚肉とキャベツ・にんじん・しめじを炒める様子"
+      },
+      "うどんと味つけを合わせる": {
+        "photo": "/experience/assets/flow-yakiudon-finish-v1.webp",
+        "photoAlt": "大人がうどんを具材とだししょうゆで炒め合わせる様子"
+      }
+    },
+    "salmon-foil": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-salmon-foil-prep-v1.webp",
+        "photoAlt": "大人がしめじの石づきを切り落として用意する様子"
+      },
+      "残りの材料を切り、ホイルに包む": {
+        "photo": "/experience/assets/flow-salmon-foil-wrap-v1.webp",
+        "photoAlt": "大人が鮭ときのこ・にんじんをホイルに包む様子"
+      },
+      "フライパンで蒸し焼きにする": {
+        "photo": "/experience/assets/flow-salmon-foil-steam-v1.webp",
+        "photoAlt": "大人がホイル包みをフライパンで蒸し焼きにする様子"
+      },
+      "中まで火が通ったことを確認する": {
+        "photo": "/experience/assets/flow-salmon-foil-check-v1.webp",
+        "photoAlt": "大人が加熱した鮭のホイル包みを開いて確認する様子"
+      }
+    },
+    "salmon-cabbage": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-prep-cabbage-v1.webp",
+        "photoAlt": "大人が洗ったキャベツの葉から硬い芯を取り除く様子"
+      },
+      "鮭と残りの野菜を切る": {
+        "photo": "/experience/assets/flow-salmon-cabbage-cut-v1.webp",
+        "photoAlt": "大人がちゃんちゃん焼き用の野菜と鮭を準備する様子"
+      },
+      "鮭を焼き、野菜を加える": {
+        "photo": "/experience/assets/flow-salmon-cabbage-sear-v1.webp",
+        "photoAlt": "大人が鮭を焼き、キャベツなどの野菜とみそだれを加える様子"
+      },
+      "蒸し焼きで仕上げる": {
+        "photo": "/experience/assets/flow-salmon-cabbage-steam-v1.webp",
+        "photoAlt": "大人が鮭と野菜をふたをして蒸し焼きにする様子"
+      }
+    },
+    "egg-sandwich": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-egg-sandwich-prep-v1.webp",
+        "photoAlt": "大人が固ゆで卵を冷まして殻をむく様子"
+      },
+      "卵の具を和える": {
+        "photo": "/experience/assets/flow-egg-sandwich-mix-v1.webp",
+        "photoAlt": "大人がつぶしたゆで卵にマヨネーズと塩を混ぜる様子"
+      },
+      "パンにはさんで仕上げる": {
+        "photo": "/experience/assets/flow-egg-sandwich-finish-v1.webp",
+        "photoAlt": "大人が卵の具をパンにはさみ、切り分ける様子"
+      }
+    },
+    "chicken-tomato": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-prep-onion-v1.webp",
+        "photoAlt": "大人が玉ねぎの外皮を少し起こして準備する様子"
+      },
+      "肉と野菜を切る": {
+        "photo": "/experience/assets/flow-chicken-tomato-cut-v1.webp",
+        "photoAlt": "大人が鶏肉の下味とトマト煮の野菜を準備する様子"
+      },
+      "鶏肉と玉ねぎを炒める": {
+        "photo": "/experience/assets/flow-chicken-tomato-sear-v1.webp",
+        "photoAlt": "大人が鶏肉を焼き、玉ねぎとにんにくを炒める様子"
+      },
+      "トマトを加えて煮る": {
+        "photo": "/experience/assets/flow-chicken-tomato-simmer-v1.webp",
+        "photoAlt": "大人がトマト・ピーマン・きのこを加えて鶏肉を煮る様子"
+      }
+    },
+    "pizza-toast": {
+      "先に準備する": {
+        "photo": "/experience/assets/flow-pizza-toast-prep-v1.webp",
+        "photoAlt": "大人が切った具材とソースをぬったパンを用意する様子"
+      },
+      "残りの具と味をのせる": {
+        "photo": "/experience/assets/flow-pizza-toast-top-v1.webp",
+        "photoAlt": "大人が野菜をのせたパンにハム・玉ねぎ・粉チーズを加える様子"
+      },
+      "トースターで焼く": {
+        "photo": "/experience/assets/flow-pizza-toast-bake-v1.webp",
+        "photoAlt": "大人が焼き上がったピザトーストを取り出す様子"
+      }
+    }
+  }
+}

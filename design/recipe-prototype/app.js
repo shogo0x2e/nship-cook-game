@@ -1,4 +1,6 @@
-import { foods, recipes, matches, suggestions, childTaskFor, foodPairs, categoryLabels, duration } from './recipes.js';
+import { inventoryVersion } from './inventory.js';
+import { inventoryPremise, inventorySummary, inventoryRecipes, inventoryMaterials } from './inventory-view.js';
+import { foods, recipes, matches, suggestions, childTaskFor, foodPairs, categoryLabels, duration, cookingFlow } from './recipes.js';
 import { questionnaireVersion, scale, questions, freshSurvey, restoreSurvey, missingQuestions, surveyForm } from './survey.js';
 import { freshParticipant, restoreParticipant, participantComplete, participantFields, isYoung } from './participant.js';
 import { offer, features, freshMarket, restoreMarket, validBudget, marketComplete, marketView } from './market.js';
@@ -83,7 +85,7 @@ function readRecords() {
 }
 function responseRecord() {
   const recipe = recipeNow();
-  return { sessionId: state.sessionId, questionnaireVersion, createdAt: state.createdAt, updatedAt: new Date().toISOString(), demo: demoMode,
+  return { sessionId: state.sessionId, questionnaireVersion, inventoryVersion, createdAt: state.createdAt, updatedAt: new Date().toISOString(), demo: demoMode,
     participant: { ...state.participant, childSurveyMode: isYoung(state.participant) ? 'young-current-experience' : 'older-kindergarten-hypothetical' },
     questionnaire: { child: questions.child.map(q => ({ id: q.id, text: isYoung(state.participant) ? q.youngText : q.text })), parent: questions.parent },
     plannedService: { offer, features, responses: JSON.parse(JSON.stringify(state.market)) },
@@ -105,7 +107,7 @@ function packet(complete = false) {
   const market = state.market;
   const evidence = Object.fromEntries(foods.map(food => [food.id, state.evidence[food.id] || { offered: 0, caught: 0 }]));
   return { id: state.sessionId, key: state.key, payload: {
-    questionnaireVersion, recipeVersion: 'daily-2026-11-19-v1', conceptVersion: offer.version,
+    questionnaireVersion, recipeVersion: 'daily-2026-11-19-v1', conceptVersion: offer.version, inventoryVersion,
     sequence: ++state.sequence, age: Number(state.participant.age), demo: demoMode, stage: complete ? 'done' : state.stage,
     selectedIngredients: [...new Set(state.caught)], evidence, recipeId: state.recipeId,
     child: { answers: { ...state.surveys.child.answers }, comment: state.surveys.child.comment },
@@ -185,7 +187,7 @@ function renderPanel() {
 }
 
 function introView() {
-  return `${heading('保護者の方へ', '食材の選択から、<br>料理とお手伝いへ。', 'ゲームで選択した食材をもとに、料理とお手伝いの工程を提案する体験です。')}<div class="intro-photo">${photo(recipes[0])}<span>料理と、お手伝いの提案</span></div><ol class="intro-steps"><li><span>1</span><div><b>子どもが食材を選ぶ</b><p>食材を選択するゲームを体験します。</p></div></li><li><span>2</span><div><b>親がレシピを確認する</b><p>材料・作り方と、子どもの担当工程を確認します。</p></div></li><li><span>3</span><div><b>子どもがやることを見る</b><p>完成写真と担当工程を確認し、アンケートに回答します。</p></div></li></ol><p class="study-note">幼稚園くらいのお子さん向けの体験です。年上の方は、当時の自分を思い浮かべてお試しください。</p><p class="plain-note">今回は、レシピと担当工程を見るまでの体験です。実際の調理は行いません。</p><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。</p>${production ? '<p class="privacy">アンケートの回答は、PoCの改善・検討のために収集します。名前やログイン情報の入力は不要です。</p>' : ''}${credit(recipes[0])}`;
+  return `${heading('保護者の方へ', '食べたい気持ちを、<br>家にあるものから料理へ。', 'ゲームで選んだ食材と、ご家庭にある食材・調味料を組み合わせて、料理と子どもの担当工程を提案する体験です。')}<div class="intro-photo">${photo(recipes[0])}<span>料理と、お手伝いの提案</span></div>${inventoryPremise()}<ol class="intro-steps"><li><span>1</span><div><b>子どもが食材を選ぶ</b><p>食材を選択するゲームを体験します。</p></div></li><li><span>2</span><div><b>親がレシピを確認する</b><p>家にあるもの・買い足すものと、子どもの担当工程を確認します。</p></div></li><li><span>3</span><div><b>子どもがやることを見る</b><p>完成写真と担当工程を確認し、アンケートに回答します。</p></div></li></ol><p class="study-note">幼稚園くらいのお子さん向けの体験です。年上の方は、当時の自分を思い浮かべてお試しください。</p><p class="plain-note">今回は、レシピと担当工程を見るまでの体験です。実際の調理は行いません。</p><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。</p>${production ? '<p class="privacy">アンケートの回答は、PoCの改善・検討のために収集します。名前やログイン情報の入力は不要です。</p>' : ''}${credit(recipes[0])}`;
 }
 
 function cameraView() {
@@ -208,10 +210,8 @@ function handoffView() {
 
 function recipeListView() {
   const list = suggestions(state.caught, state.showAll);
-  return `${heading('保護者の方へ', '選択した食材から<br>料理を提案します。', '完成写真・材料・調理時間を確認し、レシピをご覧ください。')}<section class="chosen-foods"><p class="section-label">ゲームで選択した食材</p>${state.caught.length ? chips(state.caught) : '<p class="muted">食材は未選択です。</p>'}</section><div class="recipe-list">${list.map(recipe => {
-    const hit = matches(recipe, state.caught);
-    return `<article class="recipe-card">${photo(recipe)}<div class="recipe-card-body"><p class="match-label">${hit.length ? `${hit.map(food => food.name).join('・')}を使えます` : '食材の一致なし・参考レシピ'}</p><h2>${recipe.name}</h2><div class="recipe-meta"><span>${duration(recipe)}</span><span>${recipe.servings}</span><span>${categoryLabels[recipe.category]}</span></div>${button('レシピを見る', 'open-recipe', `data-recipe="${recipe.id}" aria-label="${recipe.name}のレシピを見る"`)}</div></article>`;
-  }).join('')}</div>${!list.length ? `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>` : ''}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}<p class="plain-note">完成写真と元レシピの出典は、各レシピの画面に記載しています。子どもの担当工程は、この体験用に提案したものです。</p>`;
+  const cards = inventoryRecipes(list, state.caught, recipe => button('レシピを見る', 'open-recipe', `data-recipe="${recipe.id}" aria-label="${recipe.name}のレシピを見る"`));
+  return `${heading('保護者の方へ', '選んだ食材と、<br>家にあるものから提案します。')}<section class="chosen-foods"><p class="section-label">ゲームで選択した食材</p>${state.caught.length ? chips(state.caught) : '<p class="muted">食材は未選択です。</p>'}</section>${inventorySummary()}${list.length ? cards : `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>`}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}<p class="plain-note">今回は取得済みの在庫サンプルを使用しています。完成写真と元レシピの出典は、各レシピで確認できます。</p>`;
 }
 
 function chooseRecipe(recipe) {
@@ -230,9 +230,8 @@ function recipeDetailView(recipe) {
     ${hit.length ? `<p class="match-label">選んだ${hit.map(food => food.name).join('・')}を使います</p>` : ''}
     <p class="lead recipe-description">${recipe.description}</p>${credit(recipe)}
     <p class="recipe-child-role"><b>子どもの担当：</b>${task.title}</p>
-    <section class="content-section"><h2>使う材料</h2><ul class="materials">${recipe.materials.map(item => `<li>${item}</li>`).join('')}</ul></section>
-    <section class="content-section"><h2>料理の流れ</h2><ol class="cooking-overview">${recipe.steps.map(step => `<li><span class="role-label ${step.task === recipe.childTaskId ? 'child-role' : ''}">${step.task === recipe.childTaskId ? '子ども' : '大人'}</span><b>${step.title}</b><p>${step.detail}</p></li>`).join('')}</ol></section>
-    <section class="prep-note"><p class="section-label">大人が先に準備すること</p><p>${recipe.adultPrep}</p></section>
+    <section class="content-section">${inventoryMaterials(recipe)}</section>
+    <section class="content-section"><h2>料理の流れ</h2><ol class="cooking-overview">${cookingFlow(recipe).map(step => `<li${step.photo ? ' class="has-step-photo"' : ''}><span class="role-label ${step.role === 'child' ? 'child-role' : ''}">${step.role === 'child' ? '子ども' : '大人'}</span><div class="flow-step-copy"><b>${step.title}</b><p>${step.detail}</p></div>${step.photo ? `<img class="flow-step-photo" src="${step.photo}" alt="${step.photoAlt}" width="600" height="400" loading="lazy" decoding="async">` : ''}</li>`).join('')}</ol></section>
     <p class="fine-print">${recipe.timeNote}</p><p class="fine-print">${recipe.evidence}</p>
     <p class="fine-print">家庭の材料・商品の表示、お子さんができる作業を確認してください。</p>
     <div class="sticky-action">${button('子どもに渡す', 'show-child')}</div>`;
@@ -242,7 +241,7 @@ function childTaskView(recipe) {
   return `${back('recipe', 'ごはんを みる')}${heading('こども', 'きみの おてつだい')}
     <div class="dish-context child-recipe-context">${photo(recipe)}<div><span>この ごはんの おてつだいだよ</span><b>${recipe.childName}</b></div></div>
     <h2 class="child-task-title">${task.childTitle}</h2>
-    ${task.photo ? `<figure class="task-figure"><img src="${task.photo}" alt="${task.title}の工程イメージ" width="1448" height="1086"><figcaption>工程説明用の生成画像</figcaption></figure>` : ''}
+    ${task.photo ? `<figure class="task-figure"><img src="${task.photo}" alt="${task.title}の工程イメージ" width="1448" height="1086"></figure>` : ''}
     <ol class="child-instructions">${task.instructions.map((line, i) => `<li><span>${i + 1}</span><p>${line}</p></li>`).join('')}</ol>
     <p class="child-care">${task.care}</p>
     <p class="plain-note">いまは みるだけで だいじょうぶだよ。</p>
