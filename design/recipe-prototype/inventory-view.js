@@ -2,7 +2,7 @@ import {inventoryItems,defaultStock,inventoryFor} from './inventory.js';
 import {matches,duration} from './recipes.js';
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const inventoryBadge=(text,need=false)=>`<span class="inventory-badge ${need?'needs-shopping':''}">${need?'＋':'✓'} ${esc(text)}</span>`;
-export const inventoryPremise=()=>'<section class="inventory-premise"><h2>今回のPoCの前提</h2><p>冷蔵庫・食品置き場の食材と調味料は、あらかじめ把握できているものとして体験します。</p><p>今回は用意した在庫サンプルを使います。撮影や食材の登録は不要です。</p></section>';
+export const inventoryPremise=()=>'<section class="inventory-premise"><h2>家にあるものについて</h2><p>冷蔵庫・食品置き場の食材と調味料は、あらかじめ把握できているものとして体験します。</p><p>今回は用意した在庫サンプルを使います。撮影や食材の登録は不要です。</p></section>';
 export function inventorySummary(stock=defaultStock){
  const items=Object.entries(inventoryItems).filter(([key,item])=>stock.has(key)&&item.kind!=='utility');
  return `<section class="inventory-source" aria-label="家にある食材・調味料"><figure class="inventory-source-photo"><img src="/experience/assets/household-fridge-v1.webp" alt="食材と調味料が入った冷蔵庫" width="960" height="640"></figure><details class="inventory-summary"><summary>${inventoryBadge('家にあります！')}<span>取得済みの食材・調味料 ${items.length}品</span><span class="inventory-disclosure">一覧を見る</span></summary><div class="food-chips">${items.map(([,item])=>`<span class="food-chip">${esc(item.name)}</span>`).join('')}</div></details></section>`;

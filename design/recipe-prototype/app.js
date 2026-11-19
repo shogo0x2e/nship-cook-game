@@ -1,12 +1,12 @@
 import { inventoryVersion } from './inventory.js';
-import { inventoryPremise, inventorySummary, inventoryRecipes, inventoryMaterials } from './inventory-view.js';
+import { inventorySummary, inventoryRecipes, inventoryMaterials } from './inventory-view.js';
 import { foods, recipes, matches, suggestions, childTaskFor, foodPairs, categoryLabels, duration, cookingFlow } from './recipes.js';
 import { questionnaireVersion, scale, questions, freshSurvey, restoreSurvey, missingQuestions, surveyForm } from './survey.js';
 import { freshParticipant, restoreParticipant, participantComplete, participantFields, isYoung } from './participant.js';
 import { offer, features, freshMarket, restoreMarket, validBudget, marketComplete, marketView } from './market.js';
 
 const stages = [
-  { id: 'intro', number: '01', title: 'PoCの説明', actor: '保護者の方へ', note: '何を体験するか、親に説明する。' },
+  { id: 'intro', number: '01', title: '体験の説明', actor: '保護者の方へ', note: '何を体験するか、親に説明する。' },
   { id: 'camera', number: '02', title: 'カメラの写りを確認', actor: '子ども', note: '顔・両ひじ・両手を、プレビューで確認する。' },
   { id: 'game', number: '03', title: 'ゲーム', actor: '子ども', note: '前半はタップ操作のデモ。食材を選んで先へ進める。' },
   { id: 'result', number: '04', title: 'ゲーム結果', actor: '子ども', note: '点数と選んだ食材だけを表示する。' },
@@ -187,7 +187,7 @@ function renderPanel() {
 }
 
 function introView() {
-  return `${heading('保護者の方へ', '食べたい気持ちを、<br>家にあるものから料理へ。', 'ゲームで選んだ食材と、ご家庭にある食材・調味料を組み合わせて、料理と子どもの担当工程を提案する体験です。')}<div class="intro-photo">${photo(recipes[0])}<span>料理と、お手伝いの提案</span></div>${inventoryPremise()}<ol class="intro-steps"><li><span>1</span><div><b>子どもが食材を選ぶ</b><p>食材を選択するゲームを体験します。</p></div></li><li><span>2</span><div><b>親がレシピを確認する</b><p>家にあるもの・買い足すものと、子どもの担当工程を確認します。</p></div></li><li><span>3</span><div><b>子どもがやることを見る</b><p>完成写真と担当工程を確認し、アンケートに回答します。</p></div></li></ol><p class="study-note">幼稚園くらいのお子さん向けの体験です。年上の方は、当時の自分を思い浮かべてお試しください。</p><p class="plain-note">今回は、レシピと担当工程を見るまでの体験です。実際の調理は行いません。</p><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。</p>${production ? '<p class="privacy">アンケートの回答は、PoCの改善・検討のために収集します。名前やログイン情報の入力は不要です。</p>' : ''}${credit(recipes[0])}`;
+  return `<h1 class="sr-only">体験のご案内</h1><p class="lead">子どもがゲームで選んだ食材と、ご家庭にある食材・調味料から、料理と親子の分担を提案する体験版です。</p><p class="lead">今回は、家にあるものをあらかじめ把握している想定で、用意した在庫サンプルを使います。レシピと担当工程を確認したあと、アンケートにご協力ください。実際に調理する必要はありません。</p><div class="intro-photo">${photo(recipes[0])}<span>料理と、お手伝いの提案</span></div><ol class="intro-steps"><li><span>1</span><div><b>子どもが食材を選ぶ</b><p>食材を選択するゲームを体験します。</p></div></li><li><span>2</span><div><b>親がレシピを確認する</b><p>家にあるもの・買い足すものと、子どもの担当工程を確認します。</p></div></li><li><span>3</span><div><b>子どもがやることを見る</b><p>完成写真と担当工程を確認し、アンケートに回答します。</p></div></li></ol><p class="study-note">幼稚園くらいのお子さん向けの体験です。年上の方は、当時の自分を思い浮かべてお試しください。</p><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。</p>${production ? '<p class="privacy">アンケートの回答は、今回の体験の改善・検討のために収集します。名前やログイン情報の入力は不要です。</p>' : ''}${credit(recipes[0])}`;
 }
 
 function cameraView() {
@@ -232,8 +232,6 @@ function recipeDetailView(recipe) {
     <p class="recipe-child-role"><b>子どもの担当：</b>${task.title}</p>
     <section class="content-section">${inventoryMaterials(recipe)}</section>
     <section class="content-section"><h2>料理の流れ</h2><ol class="cooking-overview">${cookingFlow(recipe).map(step => `<li${step.photo ? ' class="has-step-photo"' : ''}><span class="role-label ${step.role === 'child' ? 'child-role' : ''}">${step.role === 'child' ? '子ども' : '大人'}</span><div class="flow-step-copy"><b>${step.title}</b><p>${step.detail}</p></div>${step.photo ? `<img class="flow-step-photo" src="${step.photo}" alt="${step.photoAlt}" width="600" height="400" loading="lazy" decoding="async">` : ''}</li>`).join('')}</ol></section>
-    <p class="fine-print">${recipe.timeNote}</p><p class="fine-print">${recipe.evidence}</p>
-    <p class="fine-print">家庭の材料・商品の表示、お子さんができる作業を確認してください。</p>
     <div class="sticky-action">${button('子どもに渡す', 'show-child')}</div>`;
 }
 function childTaskView(recipe) {

@@ -19,6 +19,12 @@ try{
   await page.addInitScript(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Synthetic denial','NotAllowedError');};});
   await page.goto(`${base}/?demo=1`);
   await page.locator('main[data-screen="intro"]').waitFor();await layout(page);
+  const title='食材選びから始める、共働き家庭の親子のごはんづくり';
+  assert.equal(await page.title(),title);assert.equal(await page.locator('meta[property="og:title"]').getAttribute('content'),title);
+  const introText=await page.locator('body').innerText();
+  assert.equal((introText.match(/保護者の方へ/g)||[]).length,1);
+  assert.ok(!/もぐもぐキャッチ|PoC|食べたい気持ちを/.test(introText));
+  assert.equal(await page.locator('.app-footer').innerText(),'芝浦工業大学 ビジネスコンテストプロジェクト｜チーム芝');
   assert.equal(await page.locator('main #username').count(),0);
   await page.locator('[name="age"]').fill(name==='phone'?'5':'16');
   await page.locator('#participant-form button').click();
@@ -40,6 +46,8 @@ try{
   for(const recipe of data.recipes){
    await page.locator(`[data-action="open-recipe"][data-recipe="${recipe.id}"]`).click();
    await page.locator('main[data-screen="recipe"]').waitFor();
+   assert.equal(await page.getByText(recipe.timeNote,{exact:true}).count(),0);
+   assert.equal(await page.getByText(recipe.evidence,{exact:true}).count(),0);
    assert.equal(await page.locator('.cooking-overview li').count(),recipe.steps.length+1);
    assert.equal(await page.locator('.cooking-overview li:first-child b').innerText(),'先に準備する');
    assert.equal(await page.locator('.cooking-overview .child-role').count(),1);
