@@ -30,7 +30,7 @@ try{
   const introText=await page.locator('body').innerText();
   assert.equal((introText.match(/保護者の方へ/g)||[]).length,1);
   assert.ok(!/もぐもぐキャッチ|PoC|食べたい気持ちを/.test(introText));
-  assert.equal(await page.locator('.app-footer').textContent(),'芝浦工業大学 ビジネスコンテストプロジェクト｜チーム芝');
+  assert.equal(await page.locator('.app-footer').textContent(),'芝浦工業大学 ビジネスコンテスト チーム芝（北田、宮尾、岡部）');
   assert.equal(await page.locator('main #username').count(),0);
   assert.equal(await page.locator('.completion-contact').count(),1);assert.equal(await page.locator('.receipt').count(),0);
   assert.match(await page.locator('.completion-contact').innerText(),/代表：北田 章伍（修士1年）/);

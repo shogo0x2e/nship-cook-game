@@ -178,11 +178,11 @@ function renderPanel() {
 
 function contactView(receipt) {
   const subject=receipt?`回答に関するお問い合わせ（受付ID：${receipt}）`:'体験に関するお問い合わせ';
-  return `<section class="completion-contact"><h2>お問い合わせ</h2><p>芝浦工業大学 ビジネスコンテスト チーム芝<br>代表：北田 章伍（修士1年）</p><a href="mailto:bp22026@shibaura-it.ac.jp?subject=${encodeURIComponent(subject)}">bp22026@shibaura-it.ac.jp</a><p>ご不明な点がありましたら、お気軽にお問い合わせください。</p>${receipt?`<p>回答に関するお問い合わせの際は、受付IDをお知らせください。</p><p class="receipt"><span>受付ID：</span><strong>${esc(receipt)}</strong></p>`:''}</section>`;
+  return `<section class="completion-contact"><h2>お問い合わせ</h2><p>芝浦工業大学 ビジネスコンテスト チーム芝（北田、宮尾、岡部）<br>代表：北田 章伍（修士1年）</p><a href="mailto:bp22026@shibaura-it.ac.jp?subject=${encodeURIComponent(subject)}">bp22026@shibaura-it.ac.jp</a><p>ご不明な点がありましたら、お気軽にお問い合わせください。</p>${receipt?`<p>回答に関するお問い合わせの際は、受付IDをお知らせください。</p><p class="receipt"><span>受付ID：</span><strong>${esc(receipt)}</strong></p>`:''}</section>`;
 }
 function introView() {
   const steps = [
-    ['ゲームをする', 'カメラの前で手を動かし、好きな食材を選びます。'],
+    ['ゲームをする', 'カメラの前で手を動かし、好きな食材を選びます。<br>スマホでもご参加いただけます。'],
     ['レシピの推薦を見る', '選んだ食材を使った料理と、子どもがお手伝いできる工程を確認します。'],
     ['アンケートに答える', 'ゲームの楽しさや、提案された分担について伺います。'],
   ];
