@@ -10,11 +10,12 @@ import { SessionError, strictObject } from './session-store.ts';
 import { AccountStore } from './account-store.ts';
 import { FamilyStore } from './family-store.ts';
 import { ExperienceStore } from './experience-store.ts';
+import {requireSurveyExportKey,surveySnapshot} from './survey-export.ts';
 import { questionnaireVersion, recipeVersion, conceptVersion } from '../src/experience-protocol.ts';
 import type { Role } from '../src/shared.ts';
 const MAX_BODY=16*1024;
 const MIME:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.task':'application/octet-stream','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2'};
-export type ServerOptions={host?:string;port?:number;dist?:string;tlsCert?:string;tlsKey?:string;dataPath?:string;allowedOrigins?:string[]};
+export type ServerOptions={host?:string;port?:number;dist?:string;tlsCert?:string;tlsKey?:string;dataPath?:string;allowedOrigins?:string[];surveyExportToken?:string};
 function json(res:ServerResponse,status:number,data:unknown){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));}
 async function body(req:IncomingMessage,maxBytes=MAX_BODY):Promise<unknown>{
   if(req.headers['content-type']?.split(';')[0].trim()!=='application/json')throw new SessionError(415,'Use application/json');
@@ -34,6 +35,7 @@ class Limiter {
 }
 export async function createSessionServer(options:ServerOptions={}){
   const host=options.host??'127.0.0.1';const port=options.port??8787;const dist=resolve(options.dist??fileURLToPath(new URL('../dist',import.meta.url)));const accounts=new AccountStore(options.dataPath??':memory:');const store=new FamilyStore(accounts);const limiter=new Limiter();
+  if(options.surveyExportToken!==undefined&&!/^[a-f0-9]{64}$/.test(options.surveyExportToken))throw new Error('Invalid survey export key');
   const experiences=new ExperienceStore(accounts.db);
   if(Boolean(options.tlsCert)!==Boolean(options.tlsKey))throw new Error('Set both TLS_CERT and TLS_KEY');
   const secure=Boolean(options.tlsCert);const scheme=secure?'https':'http';
@@ -67,6 +69,13 @@ export async function createSessionServer(options:ServerOptions={}){
         if(path==='/api/version'&&req.method==='GET'){json(res,200,{revision:process.env.APP_REVISION??'development',authentication:'family-account-v1'});return;}
         if(path==='/api/experience-version'&&req.method==='GET'){
           json(res,200,{flow:'anonymous-poc-v1',questionnaireVersion,recipeVersion,conceptVersion,persistence:'sqlite'});return;
+        }
+        if(path==='/api/operator/survey-snapshot'){
+          limiter.check('survey-export',identity,60,60_000);
+          requireSurveyExportKey(options.surveyExportToken,req.headers.authorization);
+          if(req.method!=='GET')throw new SessionError(405,'Method not allowed');
+          if(requested.search)throw new SessionError(400,'Query parameters not supported');
+          json(res,200,surveySnapshot(accounts.db));return;
         }
         const experiencePath=/^\/api\/experiences\/([23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}|[0-9a-f-]{36})$/i.exec(path);
         if(experiencePath){
@@ -119,7 +128,9 @@ if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.u
   const host=process.env.HOST??'127.0.0.1';const port=Number(process.env.PORT??8787);
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error('Invalid PORT');
   const allowedOrigins=(process.env.ALLOWED_ORIGINS??'').split(',').filter(Boolean);
-  const service=await createSessionServer({host,port,tlsCert:process.env.TLS_CERT,tlsKey:process.env.TLS_KEY,allowedOrigins,dataPath:resolve(process.env.DATA_DIR??'data','cookgame.sqlite')});
+  const exportKeyPath=resolve(process.env.DATA_DIR??'data','survey-export-token');
+  const surveyExportToken=await readFile(exportKeyPath,'utf8').then(value=>value.trim()).catch(error=>{if(error.code==='ENOENT')return undefined;throw error;});
+  const service=await createSessionServer({host,port,surveyExportToken,tlsCert:process.env.TLS_CERT,tlsKey:process.env.TLS_KEY,allowedOrigins,dataPath:resolve(process.env.DATA_DIR??'data','cookgame.sqlite')});
   await service.listen();console.log(`Local cooking session server: ${process.env.TLS_CERT?'https':'http'}://${host}:${port}`);
   // No request, address, body, pairing-code, or token logs.
 }
