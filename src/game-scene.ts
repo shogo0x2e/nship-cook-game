@@ -1,5 +1,7 @@
 import { FramingGate } from './camera-framing';
 import { TrackingStability } from './tracking-stability';
+import { TrackingDiagnostics } from './tracking-diagnostics';
+import { reportDiagnostic } from './diagnostics';
 // @ts-expect-error Shared HTML view helpers are intentionally plain JavaScript.
 import { cameraGuide, framingFeedbackHTML, bindFramingFeedback } from '../design/recipe-prototype/camera-panel.js';
 import { basketWidth, caughtAtBasket, freshEvidence, ingredients as legacyIngredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Pair, type Evidence } from './game';
@@ -12,6 +14,8 @@ type Options = { startWhenFramed?:boolean; catalog?: typeof legacyIngredients; s
 export function mountGame(container: HTMLElement, options: Options & {landscapeOnly?:boolean}) {
   const ingredients = options.catalog ?? legacyIngredients;
   const mode = options.input;
+  const diagnostics=new TrackingDiagnostics((code,metrics)=>reportDiagnostic(code,undefined,metrics));
+  let diagnosticsActive=true;
   const orientationBlocked = () => Boolean(options.landscapeOnly && window.innerHeight > window.innerWidth);
   let framingPending=Boolean(options.startWhenFramed&&mode==='camera');
   const framing=framingPending?new FramingGate():null;
@@ -50,12 +54,14 @@ export function mountGame(container: HTMLElement, options: Options & {landscapeO
   let spawned = 0, gap = .8, celebrate = 0, bounce = 0;
   let audio: AudioContext | null = null;
   const $ = <T extends HTMLElement>(selector:string) => container.querySelector<T>(selector);
-  container.innerHTML = `<div class="game-heading"><span class="pill">${mode === 'camera' ? 'すきなほうへ、てをのばそう！' : 'カメラなし・おためし'}</span><span class="game-counter" id="counter">おさら <b>1</b> / ${plateCount}</span></div><section class="field ${mode === 'camera' ? 'camera-field' : ''}" id="field" aria-label="${mode === 'camera' ? '座ったまま手を伸ばして、ふたつのうち ひとつを えらぶ' : '左右にかごを動かして、ふたつのうち ひとつを えらぶ'}"><video id="camera" autoplay muted playsinline class="camera-video avatar-source" ${mode === 'demo' ? 'hidden':''}></video><div class="field-tint"></div><canvas id="game-canvas" tabindex="0" role="img" aria-label="食材キャッチの遊び場"></canvas><div id="tracking-note" class="tracking-note" role="status"></div><div class="game-overlay setup-overlay"><div class="overlay-card"><span class="overlay-icon">${mode === 'camera' ? '🌱' : '🧺'}</span><h2>${mode==='camera'?'すわって、てをのばそう。':'かごを、左右へ。'}</h2><p>${mode==='camera'?'顔と両ひじ・両手が うつるようにしてね。<br>肩より上に手をのばして、すきな食材にタッチ。<br>どっちでも、とらなくても、だいじょうぶ。':'ふたつ おちてくるよ。すきなほうを ひとつ。<br>どっちでも、とらなくても、だいじょうぶ。'}</p><p class="camera-status" id="camera-status" role="status">${mode==='camera'?'映像はこのタブレットの中だけで使います。':'映像は使いません。'}</p>${mode==='camera'?'<button class="button primary" data-game="prepare-camera">カメラを じゅんびする</button>':''}<button class="button primary" id="start-button" data-game="start" ${mode==='camera'?'disabled':''}>はじめる →</button></div></div></section><div class="game-bottom"><div class="caught-strip"><span>きょうの おさら</span><div class="plates" id="plates"></div></div><div class="game-actions"></div></div><p class="game-help">${mode==='camera'?'すわったまま、肩より上に手をのばしてね。手の輪がタッチの目印だよ。':'指・マウスを左右へ / ← → キーでも動かせます。おさらに 3つ のせよう。'}</p>${mode === 'camera' ? '<details class="tracking-debug"><summary>大人向け：カメラと検出の確認</summary><div class="debug-content"><canvas id="pose-debug" width="320" height="240" aria-label="端末内のカメラと肩・肘・手首の検出"></canvas><div><p id="pose-metrics"></p><p>緑の点：検出できています。点が途切れたら、顔と両ひじ・両手が入るようにカメラを調整してください。立ったり歩いたりする必要はありません。</p><p>この映像・点・顔画像は端末内だけで使い、送信・保存しません。</p></div></div></details>' : ''}`;
+  container.innerHTML = `<div class="game-heading"><span class="pill">${mode === 'camera' ? 'ふたつのうち、すきなたべものに てをのばそう！' : 'カメラなし・おためし'}</span><span class="game-counter" id="counter">おさら <b>1</b> / ${plateCount}</span></div><section class="field ${mode === 'camera' ? 'camera-field' : ''}" id="field" aria-label="${mode === 'camera' ? '座ったまま手を伸ばして、ふたつのうち ひとつを えらぶ' : '左右にかごを動かして、ふたつのうち ひとつを えらぶ'}"><video id="camera" autoplay muted playsinline class="camera-video avatar-source" ${mode === 'demo' ? 'hidden':''}></video><div class="field-tint"></div><canvas id="game-canvas" tabindex="0" role="img" aria-label="食材キャッチの遊び場"></canvas><div id="tracking-note" class="tracking-note" role="status"></div><div class="game-overlay setup-overlay"><div class="overlay-card"><span class="overlay-icon">${mode === 'camera' ? '🌱' : '🧺'}</span><h2>${mode==='camera'?'すわって、てをのばそう。':'かごを、左右へ。'}</h2><p>${mode==='camera'?'顔と両ひじ・両手が うつるようにしてね。<br>肩より上に手をのばして、すきな食材にタッチ。<br>どっちでも、とらなくても、だいじょうぶ。':'ふたつ おちてくるよ。すきなほうを ひとつ。<br>どっちでも、とらなくても、だいじょうぶ。'}</p><p class="camera-status" id="camera-status" role="status">${mode==='camera'?'映像はこのタブレットの中だけで使います。':'映像は使いません。'}</p>${mode==='camera'?'<button class="button primary" data-game="prepare-camera">カメラを じゅんびする</button>':''}<button class="button primary" id="start-button" data-game="start" ${mode==='camera'?'disabled':''}>はじめる →</button></div></div></section><div class="game-bottom"><div class="caught-strip"><span>きょうの おさら</span><div class="plates" id="plates"></div></div><div class="game-actions"></div></div><p class="game-help">${mode==='camera'?'すわったまま、肩より上に手をのばしてね。手の輪がタッチの目印だよ。':'指・マウスを左右へ / ← → キーでも動かせます。おさらに 3つ のせよう。'}</p>${mode === 'camera' ? '<details class="tracking-debug"><summary>大人向け：カメラと検出の確認</summary><div class="debug-content"><canvas id="pose-debug" width="320" height="240" aria-label="端末内のカメラと肩・肘・手首の検出"></canvas><div><p id="pose-metrics"></p><p>緑の点：検出できています。点が途切れたら、顔と両ひじ・両手が入るようにカメラを調整してください。立ったり歩いたりする必要はありません。</p><p>この映像・点・顔画像は端末内だけで使い、送信・保存しません。</p></div></div></details>' : ''}`;
   const canvas = $<HTMLCanvasElement>('#game-canvas')!;
   const field = $('#field')!;
   const orientationNotice=document.createElement('section');
-  orientationNotice.className='landscape-notice';orientationNotice.setAttribute('aria-label','端末を横にしてください');
-  orientationNotice.innerHTML='<svg viewBox="0 0 120 100" aria-hidden="true"><rect x="24" y="24" width="72" height="48" rx="7" fill="none" stroke="currentColor" stroke-width="4"/><path d="M20 70C4 42 21 14 47 10m-8-7 10 7-9 9M100 28c17 28 0 56-28 60m9 8-11-8 10-9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h2>端末を横にしてください。</h2><p>ゲームは横画面で遊びます。<br>横にすると、そのまま続けられます。</p><button type="button" class="text-action" data-action="skip-game">ゲームを終了して先に進む</button>';
+  const touchDevice=navigator.maxTouchPoints>0;
+  const orientationTitle=touchDevice?'端末を横にしてください。':'ウィンドウを横長にしてください。';
+  orientationNotice.className='landscape-notice';orientationNotice.setAttribute('aria-label',orientationTitle);
+  orientationNotice.innerHTML=`<svg viewBox="0 0 120 100" aria-hidden="true"><rect x="24" y="24" width="72" height="48" rx="7" fill="none" stroke="currentColor" stroke-width="4"/><path d="M20 70C4 42 21 14 47 10m-8-7 10 7-9 9M100 28c17 28 0 56-28 60m9 8-11-8 10-9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h2>${orientationTitle}</h2><p>ゲームは横画面で遊びます。<br>${touchDevice?'横にすると':'ウィンドウを横長にすると'}、そのまま続けられます。</p><button type="button" class="text-action" data-action="skip-game">ゲームを終了して先に進む</button>`;
   if(options.landscapeOnly)container.append(orientationNotice);
   function updateOrientation(){const blocked=orientationBlocked();orientationNotice.hidden=!blocked;field.inert=blocked;container.dataset.orientationBlocked=String(blocked);}
   updateOrientation();
@@ -87,11 +93,13 @@ export function mountGame(container: HTMLElement, options: Options & {landscapeO
     if (lastTracking) sampleGap = tracking.capturedAt - lastTracking.capturedAt;
     lastTracking = tracking; lastPose = performance.now();
     targetArms = poseArms(tracking.points, tracking.width, tracking.height);
+    if(!document.hidden&&!orientationBlocked()&&phase!=='paused')diagnostics.observe({at:tracking.capturedAt,inferenceMs:tracking.inferenceMs,width:tracking.width,height:tracking.height,arms:targetArms});
     trackingStability.observe(targetArms.every(arm=>arm.valid),tracking.capturedAt,performance.now());
     avatar?.updateFace(tracking.points, video, performance.now());
     updateTracking();
   });
-  void avatar?.ready.then(() => { if (!disposed) { assetsReady = true; updateTracking(); } }).catch(() => {
+  void avatar?.ready.then(() => { if (!disposed) { assetsReady = true; updateTracking(); } }).catch(error => {
+    reportDiagnostic('asset_load',error);
     if (!disposed) { cameraState = 'error'; cameraMessage = '絵を読み込めませんでした。ページを再読み込みしてください。'; updateTracking(); }
   });
   const isTracked = () => trackingStability.sample(performance.now()).control;
@@ -110,6 +118,7 @@ export function mountGame(container: HTMLElement, options: Options & {landscapeO
     if(orientationBlocked())return;
     if(cameraState==='loading'||cameraState==='ready')return;
     if(!options.cameraFactory && (!isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
+      reportDiagnostic('camera_start',new DOMException('Camera API unavailable','NotSupportedError'));
       cameraState='error';cameraMessage='カメラには信頼済みのHTTPSが必要です。大人の画面でカメラなしを選び直すこともできます。';updateTracking();return;
     }
     cameraState='loading';updateTracking();
@@ -138,7 +147,7 @@ export function mountGame(container: HTMLElement, options: Options & {landscapeO
     if(orientationBlocked())return;
     if (disposed || !['setup', 'paused'].includes(phase) || !options.canPlay()) return;
     if (mode === 'camera' && (cameraState !== 'ready' || !assetsReady || !isTracked())) return;
-    if(framingPending){framingPending=false;container.classList.remove('is-framing');field.classList.remove('framing-field');$('.game-heading .pill')!.textContent='すきなほうへ、てをのばそう！';}
+    if(framingPending){framingPending=false;container.classList.remove('is-framing');field.classList.remove('framing-field');$('.game-heading .pill')!.textContent='ふたつのうち、すきなたべものに てをのばそう！';}
     startAudio(); phase = 'playing'; gestureHold.reset(); gestureProgress = 0; gestureTarget = null;
     previousHands = []; wasTracked = false;
     container.querySelector('.game-overlay')?.remove(); refreshActions(); canvas.focus({preventScroll:true});
@@ -194,6 +203,10 @@ function tick(now: number) {
   const tracked = !orientationBlocked() && (mode === 'demo' || (assetsReady && cameraState === 'ready' && isTracked()));
   const layout = avatarLayout(field.clientWidth, field.clientHeight);
   if (mode === 'camera') {
+    const active=!document.hidden&&!orientationBlocked()&&phase!=='paused';
+    if(!active&&diagnosticsActive)diagnostics.reset();
+    diagnosticsActive=active;
+    if(active&&cameraState==='ready')diagnostics.poll(now);
     updateTracking();
     const feedback=trackingStability.sample(performance.now());
     displayedArms = targetArms.map((arm, i) => tracked&&arm.valid ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: feedback.visible&&displayedArms[i].valid, raised: feedback.visible&&displayedArms[i].raised }) as typeof targetArms;

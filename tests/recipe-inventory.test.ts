@@ -5,6 +5,8 @@ import data from '../src/experience-data.json' with {type:'json'};
 import stock from '../design/recipe-prototype/stock-data.json' with {type:'json'};
 import photos from '../design/recipe-prototype/flow-photo-data.json' with {type:'json'};
 import {inventoryVersion} from '../src/experience-protocol.ts';
+// @ts-expect-error The stock selection helper is shared with the HTML prototype.
+import {inventorySelection,defaultStock,foodStockKeys} from '../design/recipe-prototype/inventory.js';
 
 test('household stock covers every recipe material and seasoning, including grouped source lines',()=>{
  assert.equal(stock.version,inventoryVersion);
@@ -18,6 +20,18 @@ test('household stock covers every recipe material and seasoning, including grou
  const present=new Set(Object.entries(stock.items).filter(([,item])=>item.present).map(([key])=>key));
  assert.equal(stock.recipeMaterials.nikujaga.filter(row=>!present.has(row.key)).length,0);
  assert.deepEqual(stock.recipeMaterials.yakisoba.filter(row=>!present.has(row.key)).map(row=>row.key),['sprouts']);
+});
+
+test('the combined stock panel only highlights selected foods that are present, with other stock kept separate',()=>{
+ const result=inventorySelection(['pork','pork','noodles','salmon','tomato','bread']);
+ assert.deepEqual(result.availableFoodIds,['pork','noodles','bread']);
+ assert.deepEqual(result.missingFoodIds,['salmon','tomato']);
+ const selectedKeys=new Set(result.availableFoodIds.flatMap((id:string)=>foodStockKeys[id]));
+ assert.ok(result.otherItems.every(([key]:[string,unknown])=>defaultStock.has(key)&&!selectedKeys.has(key)));
+ assert.ok(result.otherItems.some(([key]:[string,unknown])=>key==='potato'));
+ assert.ok(result.otherItems.some(([key]:[string,unknown])=>key==='soy'));
+ assert.ok(!result.otherItems.some(([key]:[string,unknown])=>key==='water'));
+ const none=inventorySelection([]);assert.equal(none.availableFoodIds.length,0);assert.equal(none.otherItems.length,33);
 });
 test('every displayed adult step has an optimized photo and child steps keep their existing task photo',()=>{
  for(const recipe of data.recipes){

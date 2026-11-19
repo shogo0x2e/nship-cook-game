@@ -45,7 +45,7 @@ export async function createSessionServer(options:ServerOptions={}){
   const handler=async(req:IncomingMessage,res:ServerResponse)=>{
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');
     res.setHeader('Permissions-Policy','camera=(self), microphone=(), geolocation=()');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://sentry.x2e.me; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     try{
       const authority=req.headers.host;if(!authority)throw new SessionError(400,'Host required');
       let requested:URL;try{requested=new URL(`${scheme}://${authority}${req.url??'/'}`);}catch{throw new SessionError(400,'Invalid URL');}

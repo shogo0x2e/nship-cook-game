@@ -67,7 +67,7 @@ def verify_image(image, revision):
                    'conceptVersion': flow['conceptVersion'], 'deviceId': str(uuid.uuid4()), 'sequence': 1, 'age': 8, 'demo': True, 'stage': 'done',
                    'selectedIngredients': ['rice'], 'evidence': {'rice': {'offered': 1, 'caught': 1}}, 'recipeId': 'curry',
                    'child': {'answers': {'game_fun': 7, 'help_intent': 6, 'daily_feasibility': 4}, 'comment': ''},
-                   'parent': {'answers': {'task_feasibility': 6, 'continued_use': 5, 'meal_decision_ease': 5, 'child_initiative': 6}, 'comment': '', 'gameplayStatus': 'smooth', 'gameplayComment': 'CI demo'},
+                   'parent': {'answers': {'task_feasibility': 6, 'continued_use': 5, 'meal_preparation_ease': 5, 'child_initiative': 6}, 'comment': '', 'gameplayStatus': 'smooth', 'gameplayComment': 'CI demo', 'employmentStatus': 'yes'},
                    'serviceFeedback': {'interestedFeatures': ['food_learning'], 'comment': 'CI demo'},
                    'payment': {'kind': 'free', 'maxMonthlyYen': 0}, 'complete': True}
         headers = {'Host': 'localhost:8787', 'Origin': 'https://cookgame.shogo0x2e.com',
@@ -85,7 +85,7 @@ def verify_image(image, revision):
         assets = json.loads(Path('src/experience-data.json').read_text())
         paths = [r['image'] for r in assets['recipes']] + list({r['tasks'][0]['photo'] for r in assets['recipes']})
         paths += ['/experience/assets/concept-' + slug + '.webp' for slug in ['game-recipe', 'food-learning', 'challenge-feedback', 'expert-recipes', 'family-schedule']]
-        paths += ['/experience/assets/concept-expert-recipes-v3.webp', '/experience/assets/concept-family-schedule-v3.webp']
+        paths += ['/experience/assets/concept-expert-recipes-v3.webp', '/experience/assets/concept-family-schedule-v3.webp', '/experience/assets/concept-family-schedule-v4.webp', '/experience/assets/household-vegetable-storage-v1.webp']
         flow_photos = json.loads(Path('design/recipe-prototype/flow-photo-data.json').read_text())
         paths += sorted({step['photo'] for recipe in flow_photos['recipes'].values() for step in recipe.values()})
         paths += ['/experience/assets/household-fridge-v1.webp', '/experience/assets/intro-flow-v2.webp',

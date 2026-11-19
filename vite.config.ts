@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 const headers = {
-  // Model/WASM loads remain same-origin; neither application nor model may connect to an external server.
-  'Content-Security-Policy': "connect-src 'self' ws://127.0.0.1:5173; object-src 'none'; base-uri 'self'; form-action 'none'",
+  // Model/WASM remain same-origin. Only allowlisted diagnostics reach the self-hosted Sentry.
+  'Content-Security-Policy': "connect-src 'self' ws://127.0.0.1:5173 https://sentry.x2e.me; object-src 'none'; base-uri 'self'; form-action 'none'",
   'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()',
   'Referrer-Policy': 'no-referrer',
 };

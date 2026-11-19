@@ -12,12 +12,13 @@
     "test": "node --test tests/*.test.ts",
     "setup:pose": "node scripts/setup-pose.mjs",
     "cert:local": "node scripts/create-local-cert.mjs",
-    "test:e2e": "node tests/e2e.mjs && node tests/avatar-e2e.mjs && node tests/challenge-e2e.mjs && node tests/camera-framing-e2e.mjs && node tests/recipe-flow-e2e.mjs",
+    "test:e2e": "node tests/e2e.mjs && node tests/avatar-e2e.mjs && node tests/challenge-e2e.mjs && node tests/camera-framing-e2e.mjs && node tests/recipe-flow-e2e.mjs && node tests/diagnostics-e2e.mjs",
     "test:avatar": "node tests/avatar-e2e.mjs",
     "test:challenge": "node tests/challenge-e2e.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.2.3",
+    "@sentry/browser": "11.14.0",
     "nanoid": "6.0.2"
   },
   "devDependencies": {

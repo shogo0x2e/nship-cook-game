@@ -97,7 +97,7 @@ function packet(complete = false) {
     sequence: ++state.sequence, age: Number(state.participant.age), demo: demoMode, stage: complete ? 'done' : state.stage,
     selectedIngredients: [...new Set(state.caught)], evidence, recipeId: state.recipeId,
     child: { answers: { ...state.surveys.child.answers }, comment: state.surveys.child.comment },
-    parent: { answers: { ...state.surveys.parent.answers }, comment: state.surveys.parent.comment, gameplayStatus: state.surveys.parent.gameplayStatus || null, gameplayComment: state.surveys.parent.gameplayComment },
+    parent: { answers: { ...state.surveys.parent.answers }, comment: state.surveys.parent.comment, gameplayStatus: state.surveys.parent.gameplayStatus || null, gameplayComment: state.surveys.parent.gameplayComment, employmentStatus: state.surveys.parent.employmentStatus || null },
     serviceFeedback: { interestedFeatures: [...market.interestedFeatures], comment: market.featureComment },
     payment: validBudget(market) ? { kind: market.budgetKind, maxMonthlyYen: market.budgetKind === 'paid' ? Number(market.maxMonthlyYen) : market.budgetKind === 'free' ? 0 : null } : null,
     gameInput: state.gameInput, complete,
@@ -142,7 +142,7 @@ function updateSurvey(form) {
     else delete response.answers[question.id];
   }
   response.comment = String(data.get('comment') || ''); response.submittedAt = null;
-  if (role === 'parent') { response.gameplayStatus = String(data.get('gameplayStatus') || ''); response.gameplayComment=String(data.get('gameplayComment') || ''); }
+  if (role === 'parent') { response.gameplayStatus = String(data.get('gameplayStatus') || ''); response.gameplayComment=String(data.get('gameplayComment') || ''); response.employmentStatus=String(data.get('employmentStatus') || ''); }
   if (role === 'parent') { state.market.experienceCompletedAt = null; state.market.submittedAt = null; }
   const missing = missingQuestions(role, response);
   document.querySelector('#survey-progress').textContent = `回答済み ${surveyQuestionCount(role) - missing.length} / ${surveyQuestionCount(role)}`;
@@ -176,17 +176,21 @@ function renderPanel() {
   panel.innerHTML = `<p class="review-label">スマホの体験を確認</p><h2>料理を選んで、<br>お手伝いにつなぐ。</h2><p class="review-description">ゲームはタップ操作で再現。レシピとお手伝いの提案を確認する試作です。</p><button class="sample-start" data-action="sample">レシピの確認から試す <span aria-hidden="true">↗</span></button><nav>${stages.map(item => `<button data-action="review" data-stage="${item.id}" ${state.stage === item.id ? 'aria-current="step"' : ''}><span>${item.number}</span>${item.title}</button>`).join('')}</nav><div class="review-current"><b>${meta.number} ${meta.title}</b><p>${meta.note}</p></div><a class="review-document" href="./survey-review.html" target="_blank" rel="noopener">アンケート一覧を表で見る ↗</a><button class="reset-link" data-action="review-market">機能・料金の質問を確認</button><button class="reset-link" data-action="export-survey">回答データをJSON保存</button><button class="reset-link" data-action="reset">新しい体験を始める</button>`;
 }
 
+function contactView(receipt) {
+  const subject=receipt?`回答に関するお問い合わせ（受付ID：${receipt}）`:'体験に関するお問い合わせ';
+  return `<section class="completion-contact"><h2>お問い合わせ</h2><p>芝浦工業大学 ビジネスコンテスト チーム芝<br>代表：北田 章伍（修士1年）</p><a href="mailto:bp22026@shibaura-it.ac.jp?subject=${encodeURIComponent(subject)}">bp22026@shibaura-it.ac.jp</a><p>ご不明な点がありましたら、お気軽にお問い合わせください。</p>${receipt?`<p>回答に関するお問い合わせの際は、受付IDをお知らせください。</p><p class="receipt"><span>受付ID：</span><strong>${esc(receipt)}</strong></p>`:''}</section>`;
+}
 function introView() {
   const steps = [
-    ['子どもがゲームをする', '手をのばして、食材を選びます。'],
-    ['レシピの推薦を見る', '料理と親子の分担を確認します。'],
-    ['アンケートに答える', '親子それぞれの感想を教えてください。'],
+    ['ゲームをする', 'カメラの前で手を動かし、好きな食材を選びます。'],
+    ['レシピの推薦を見る', '選んだ食材を使った料理と、子どもがお手伝いできる工程を確認します。'],
+    ['アンケートに答える', 'ゲームの楽しさや、提案された分担について伺います。'],
   ];
-  return `<h1 class="intro-title">食材選びから始める、<br>共働き家庭の<br class="intro-mobile-break">親子のごはんづくり</h1><p class="lead intro-lead">ゲームで選んだ食材と、家にあるものから、料理と親子の分担を提案する体験版です。</p><ol class="experience-steps">${steps.map(([title,copy],i)=>`<li><div class="experience-step-image step-image-${i+1}" role="img" aria-label="${title}のイメージ"></div><div class="experience-step-copy"><span>${i+1}</span><div><h2>${title}</h2><p>${copy}</p></div></div></li>`).join('')}</ol><p class="intro-assumption">今回は在庫サンプルを使います。実際に調理する必要はありません。</p><p class="study-note">幼稚園くらいのお子さん向けの体験です。年上の方は、当時の自分を思い浮かべてお試しください。ゲームは端末を横にして遊びます。</p><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><details class="device-plan"><summary>実際のご家庭での利用について</summary><p>実際の利用では、お子さんはタブレット、保護者はご自身のスマートフォンなど、別々の端末を使う想定です。ご家庭のタブレットを使い、お持ちでない場合は、置いて使えるタブレットを貸与する構想です。</p><p>今回の体験版では、1台の端末を親子で受け渡してお試しください。</p></details><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。</p>${production ? '<p class="privacy">アンケートは体験の改善・検討に使用します。名前やログイン情報の入力は不要です。</p>' : ''}`;
+  return `<h1 class="intro-title">食材選びから始める、<br>共働き家庭の<br>親子のごはんづくり</h1><div class="intro-study"><p>芝浦工業大学 ビジネスコンテストプロジェクトでは、アンケート調査の結果をもとに、親子のごはんづくりを支えるアプリを考えました。</p><p>使いやすさや、提案された料理の分担への納得感を確かめるため、体験とアンケートへのご協力をお願いします。</p><p>主な対象は、8歳以下のお子さんがいる共働き家庭ですが、幅広いご意見を集めていますので、対象に当てはまらない方も、ぜひご参加ください。</p></div><h2 class="experience-flow-title">体験の流れ</h2><ol class="experience-steps">${steps.map(([title,copy],i)=>`<li><div class="experience-step-image step-image-${i+1}" role="img" aria-label="${title}のイメージ"></div><div class="experience-step-copy"><span>${i+1}</span><div><h2>${title}</h2><p>${copy}</p></div></div></li>`).join('')}</ol><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form>${contactView()}`;
 }
 
 function cameraView() {
- return `<div class="camera-launch"><h1 class="sr-only">ゲームを始める</h1><button class="primary camera-launch-button" data-action="start-camera-game"><span>カメラを起動して、<br>ゲームを始める</span><span aria-hidden="true">→</span></button></div>`;
+ return `<div class="camera-launch"><h1 class="sr-only">ゲームを始める</h1><button class="primary camera-launch-button" data-action="start-camera-game"><span>カメラを起動して、<br>ゲームを始める</span><span aria-hidden="true">→</span></button><p class="privacy">カメラ映像は端末内だけで使い、送信・保存しません。<br>動作の改善のため、端末の種類やエラー情報を収集します。</p></div>`;
 }
 
 function gameView() {
@@ -208,7 +212,7 @@ function handoffView() {
 function recipeListView() {
   const list = suggestions(state.caught, state.showAll);
   const cards = inventoryRecipes(list, state.caught, recipe => button('レシピを見る', 'open-recipe', `data-recipe="${recipe.id}" aria-label="${recipe.name}のレシピを見る"`));
-  return `${heading('保護者の方へ', '選んだ食材と、<br>冷蔵庫にあるものから提案します。')}<section class="chosen-foods"><p class="section-label">ゲームで選択した食材</p>${state.caught.length ? chips(state.caught) : '<p class="muted">食材は未選択です。</p>'}</section>${inventorySummary()}${list.length ? cards : `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>`}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}<p class="plain-note">今回は取得済みの在庫サンプルを使用しています。完成写真と元レシピの出典は、各レシピで確認できます。</p>`;
+  return `${heading('保護者の方へ', 'お子さんの好みと、<br>家にあるものから提案します。')}${inventorySummary(state.caught)}${list.length ? cards : `<div class="empty-state"><h2>この${recipes.length}品には、<br>一致する食材がありません。</h2><p>使う食材を見直すか、参考としてほかのレシピを見られます。</p>${secondary('参考レシピを見る', 'show-all')}</div>`}${!state.showAll && list.length && list.length < recipes.length ? secondary(`すべてのレシピを見る（${recipes.length}品）`, 'show-all') : ''}<p class="plain-note">今回は取得済みの在庫サンプルを使用しています。完成写真と元レシピの出典は、各レシピで確認できます。</p>`;
 }
 
 function chooseRecipe(recipe) {
@@ -246,7 +250,7 @@ function surveyView(parent) {
   return `${heading('', young ? 'あそんだ かんそうを<br>おしえてね。' : '体験の感想を<br>教えてください。')}${surveyForm(role, state.surveys[role], young)}`;
 }
 function doneView() {
-  if (production) return `<div class="completion-view"><h1>ありがとう<br>ございました</h1><p class="lead">回答を受け付けました。<br>この画面を閉じて終了してください。</p><div class="receipt"><span>受付ID</span><strong>${esc(state.receipt)}</strong></div><section class="completion-contact"><h2>お問い合わせ</h2><p>芝浦工業大学 ビジネスコンテスト チーム芝<br>代表：北田 章伍</p><a href="mailto:bp22026@shibaura-it.ac.jp?subject=${encodeURIComponent(`回答に関するお問い合わせ（受付ID：${state.receipt}）`)}">bp22026@shibaura-it.ac.jp</a><p>ご不明な点がありましたら、お気軽にお問い合わせください。<br>回答に関するお問い合わせの際は、受付IDをお知らせください。</p></section></div>`;
+  if (production) return `<div class="completion-view"><h1>ありがとう<br>ございました</h1><p class="lead">回答を受け付けました。<br>この画面を閉じて終了してください。</p>${contactView(state.receipt)}</div>`;
   const complete = state.surveys.child.submittedAt && state.surveys.parent.submittedAt && marketComplete(state.market);
   return `<div class="center-view">${heading('体験のおわり', 'ありがとう<br>ございました', '料理とお手伝いの内容を見る体験は、ここまでです。')}
     <p class="plain-note">${storageNotice || (complete ? '回答をこの端末のブラウザに保存しました。' : 'アンケートはまだ完了していません。')}${demoMode ? ' デモ回答は通常の回答とは別に保存しています。' : ''}</p>
@@ -273,6 +277,7 @@ function render() {
   if (stage !== 'game') gameEntryRequested=false;
   const generation=++gameMountGeneration;
   state.stage = stage;
+  runtime?.setDiagnosticContext?.({experienceId:state.sessionId,deviceId,screen:stage,demo:demoMode});
   if (routeId() !== stage) history.replaceState(null, '', `#${stage}`);
   actor.textContent = stages.find(item => item.id === stage).actor;
   const recipe = recipeNow();
@@ -298,7 +303,7 @@ function render() {
   app.dataset.experienceId=state.sessionId;
   document.body.classList.toggle('is-game', stage === 'game');
   document.body.classList.toggle('is-portrait-return',Boolean(app.querySelector('.portrait-return')));
-  document.querySelector('.app-footer').hidden=stage==='done';
+  document.querySelector('.app-footer').hidden=['intro','done'].includes(stage);
   renderPanel();
   save();
   document.body.classList.remove('flow-open');
