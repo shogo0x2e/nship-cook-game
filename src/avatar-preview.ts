@@ -55,6 +55,7 @@ function show(mode: string) {
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-mode]')) button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
   const container = root.querySelector<HTMLElement>('#preview-game')!;
   game = mountGame(container, {
+    showPreview: true,
     input: mode === 'demo' ? 'demo' : 'camera', allowed: ingredients.map(food => food.id), canPlay: () => true,
     cameraFactory: mode === 'sample' ? callback => new SampleCamera(callback) : undefined,
     onStatus: async () => {},

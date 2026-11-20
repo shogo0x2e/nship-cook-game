@@ -53,3 +53,10 @@ export function recommend(selected: IngredientId[], excluded: Set<IngredientId>,
     .sort((a, b) => b.foods.filter(f => selected.includes(f)).length - a.foods.filter(f => selected.includes(f)).length)
     .slice(0, 3);
 }
+
+/** Compare ingredients with the same meal role; rotate roles so all 13 can appear early. */
+export function rolePairSchedule(groups: IngredientId[][], count: number, random: () => number = Math.random): Pair[] {
+  const schedules = groups.filter(group => group.length >= 2).map(group => pairSchedule(group, count, random));
+  if (!schedules.length) return [];
+  return Array.from({length: count}, (_, i) => schedules[i % schedules.length][Math.floor(i / schedules.length)]);
+}

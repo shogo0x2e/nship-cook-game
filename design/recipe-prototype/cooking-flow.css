@@ -1,0 +1,46 @@
+/* Parent and child steps share the same illustrated flow in the prototype and production. */
+.overview li.has-step-photo,
+.cooking-overview li.has-step-photo {
+  display:grid;
+  grid-template-columns:76px minmax(0,1fr) 200px;
+  grid-template-areas:"role copy photo";
+  align-items:start;
+  gap:18px;
+  padding:22px 0;
+  border-bottom:1px solid var(--line);
+}
+.has-step-photo>.role,
+.has-step-photo>.role-label {
+  grid-area:role;
+  margin:0;
+  padding:4px 8px;
+  border-radius:5px;
+  font-size:13px;
+  line-height:1.7;
+  text-align:center;
+}
+.has-step-photo>.flow-step-copy {grid-area:copy;min-width:0}
+.has-step-photo .flow-step-copy b {display:block;font-size:17px;line-height:1.7;margin:0 0 7px}
+.has-step-photo .flow-step-copy p {font-size:14px;line-height:1.9;color:var(--muted);margin:0}
+.has-step-photo>.flow-step-photo {
+  grid-area:photo;
+  display:block;
+  width:100%;
+  height:auto;
+  aspect-ratio:3/2;
+  object-fit:cover;
+  border-radius:9px;
+}
+.cooking-overview:has(.has-step-photo) {gap:0}
+.cooking-overview li.has-step-photo:before {display:none}
+@media(max-width:700px) {
+  .overview li.has-step-photo,
+  .cooking-overview li.has-step-photo {
+    grid-template-columns:55px minmax(0,1fr);
+    grid-template-areas:"role copy" ". photo";
+    gap:12px;
+    padding:20px 0;
+  }
+  .has-step-photo .flow-step-copy b {font-size:16px}
+  .has-step-photo .flow-step-copy p {font-size:14px}
+}

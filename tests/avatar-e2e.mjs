@@ -18,6 +18,9 @@ await mkdir('test-results/avatar',{recursive:true});
 try {
   await page.goto(`${base}/poc.html`);
   await page.waitForFunction(()=>document.querySelector('#field')?.dataset.tracked==='true'&&!document.querySelector('#start-button').disabled);
+  assert.equal(await page.locator('.game-live-preview').isVisible(),true);
+  assert.equal(await page.locator('.game-live-preview').evaluate(video=>Boolean(video.srcObject)&&video.srcObject===document.querySelector('#camera').srcObject),true);
+  check('always-visible mirror preview shares the local camera stream');
   await pose('cross'); await page.waitForTimeout(450);
   const armInFront=await page.locator('#game-canvas').evaluate(canvas=>{
     const box=canvas.getBoundingClientRect(),s=Math.min(box.width/900,box.height/560),cy=Math.min(box.height*.62,box.height-248*s),dpr=canvas.width/box.width;
@@ -38,6 +41,7 @@ try {
   await page.screenshot({path:'test-results/avatar/01-reaching-landscape.png',fullPage:true});
   check('generated sprites and synthetic face render; raised hand catches exactly one ingredient');
   await pose('lost'); await page.waitForFunction(()=>document.querySelector('#field')?.dataset.tracked==='false');
+  await page.getByText('両ひじと両手をうつしてね。時間は止まっているよ。',{exact:true}).waitFor();
   assert.match(await page.locator('#tracking-note').innerText(),/時間は止まっている/);
   const count=await caught(), pixels=await topPixels(); await page.waitForTimeout(1300);
   assert.equal(await caught(),count); assert.equal(await topPixels(),pixels);

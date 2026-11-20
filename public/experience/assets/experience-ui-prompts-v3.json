@@ -1,0 +1,13 @@
+{
+  "tool": "built-in image_gen",
+  "assets": [
+    {
+      "file": "concept-expert-recipes-v3.webp",
+      "prompt": "Use case: illustration-story. Asset type: a landscape 3:2 illustrated concept card in a Japanese family cooking app. Create a warm textured watercolor and cut-paper picture book illustration in muted cream, sage green, ochre and terracotta, consistent with a gentle Japanese children's book. Scene: a generic male cooking expert and female nutritionist collaboratively developing an everyday Japanese family recipe in a cozy sunlit kitchen. View them from a natural elevated three-quarter side angle across the worktop. They look down at their shared recipe notes lying FLAT on the counter and at a plate of nikujaga, discussing thoughtfully. One person writes with a pen, the other points at the ingredients on the counter. No phone, no computer screen, no floating diagram, no thought bubble, no calendar. Papers must lie flat facing the people, NEVER propped up or presented to the viewer. Natural hands, ordinary home food, clean composition, friendly candid moment, no posing at camera. No text, letters, numbers, logos, watermark. Full bleed landscape 3:2 illustration."
+    },
+    {
+      "file": "concept-family-schedule-v3.webp",
+      "prompt": "Use case: illustration-story. Asset type: a landscape 3:2 illustrated concept card in a Japanese family cooking app. Create a warm textured watercolor and cut-paper picture book illustration in muted cream, sage green, ochre and terracotta, consistent with a gentle Japanese children's book. Scene: a mother, father and young child sitting together at a home kitchen table planning dinner around their schedules. A simple weekly calendar sheet with a few colored blocks lies FLAT on the tabletop, naturally oriented to the family. The mother points down to a block on the sheet. The father holds his smartphone low in one hand, tilted naturally TOWARD HIM, so the viewer sees the back of the phone, NOT the screen. The child smiles and listens. Camera is an elevated three-quarter candid side view, allowing us to see the whole table and family, not a front-on posed portrait. A small pot of curry and ordinary bowls nearby indicate a quick shared meal plan. No floating diagrams, no thought bubbles. Do NOT turn a phone screen or paper upright toward the viewer. Natural hands, pleasant cozy room, no text, letters, numbers, logos, watermark. Full bleed landscape 3:2 illustration."
+    }
+  ]
+}

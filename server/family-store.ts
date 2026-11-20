@@ -4,6 +4,7 @@ import { freshEvidence, hintIds } from '../src/game.ts';
 import type { FamilyState, Role, RoomAction } from '../src/shared.ts';
 import { AccountStore } from './account-store.ts';
 import { applyAction, SessionError, strictObject, validateSettings, validateEvidence } from './session-store.ts';
+import { challengeScore, comparisonKey, freshChallengeProgress, validateChallengeResult, validateDailyFeedback } from '../src/challenge.ts';
 
 export class FamilyStore {
   private accounts: AccountStore;
@@ -32,18 +33,29 @@ export class FamilyStore {
       state.selected = state.selected.filter(id => !settings.excluded.includes(id) && !ingredients.find(i => i.id === id)!.allergens.some(a => settings.allergens.includes(a)));
     } else if (type === 'START_GAME') {
       if (role !== 'child') throw new SessionError(403, 'Role not allowed');
-      const a = strictObject(value, ['type','input']);
+      const a = strictObject(value, Object.hasOwn(value,'variant')?['type','input','variant']:['type','input']);
       if (a.input !== 'camera' && a.input !== 'demo') throw new SessionError(400, 'Invalid input mode');
+      if (a.variant !== undefined && a.variant !== 'simple' && a.variant !== 'challenge') throw new SessionError(400, 'Invalid game variant');
       if (['ready','playing','paused'].includes(state.game.status)) throw new SessionError(409, 'Round already active');
-      state.game = { ...state.game, roundId: randomUUID(), status: 'ready', input: a.input, elapsed: 0 };
+      state.game = { ...state.game, roundId: randomUUID(), status: 'ready', input: a.input, variant: a.variant==='challenge'?'challenge':'simple', elapsed: 0 };
     } else if (type === 'GAME_STATUS' || type === 'GAME_RESULT') {
       if (role !== 'child') throw new SessionError(403, 'Role not allowed');
-      const a = strictObject(value, type === 'GAME_STATUS' ? ['type','roundId','status'] : ['type','roundId','evidence']);
+      const a = strictObject(value, type === 'GAME_STATUS' ? ['type','roundId','status'] : Object.hasOwn(value,'challenge')?['type','roundId','evidence','challenge']:['type','roundId','evidence']);
       if (a.roundId !== state.game.roundId || !state.game.roundId) throw new SessionError(409, 'Stale round');
       if (type === 'GAME_RESULT') {
         const evidence = validateEvidence(a.evidence, state);
         if (state.game.status === 'finished') return current;
         if (state.game.status === 'idle') throw new SessionError(409, 'Round cancelled');
+        if(state.game.variant==='challenge'){
+          let result;try{result=validateChallengeResult(a.challenge,Object.values(evidence).reduce((n,v)=>n+v.caught,0));}catch{throw new SessionError(400,'Invalid challenge result');}
+          const progress=state.challenge??freshChallengeProgress();
+          const allowed=ingredients.filter(i=>!state.excluded.includes(i.id)&&!i.allergens.some(a=>state.allergens.includes(a))).map(i=>i.id);
+          const key=comparisonKey(state.game.input,allowed),score=challengeScore(result.catches),previousBest=progress.best[key]??0;
+          progress.runs.push({activeMs:result.activeMs,completed:result.completed,caught:result.catches.length,roundId:state.game.roundId,input:state.game.input,comparisonKey:key,finishedAt:this.now(),score,previousBest});
+          progress.runs=progress.runs.slice(-100);
+          if(result.completed)progress.best[key]=Math.max(previousBest,score);
+          state.challenge=progress;state.game.elapsed=result.activeMs/1000;
+        }else if(a.challenge!==undefined)throw new SessionError(400,'Challenge result is not allowed');
         state.game.evidence = evidence; state.game.status = 'finished'; state.latestResultAt = this.now();
         state.selected = hintIds(evidence);
         if (state.stage === 'lobby') state.stage = 'review';
@@ -53,6 +65,11 @@ export class FamilyStore {
         if (state.game.status === a.status) return current;
         state.game.status = a.status;
       }
+    } else if(type==='CHALLENGE_FEEDBACK'){
+      const a=strictObject(value,['type','roundId','feedback']);
+      const run=state.challenge?.runs.find(run=>run.roundId===a.roundId);
+      if(!run)throw new SessionError(400,'Unknown challenge round');
+      try{run.feedback=validateDailyFeedback(a.feedback);}catch{throw new SessionError(400,'Invalid feedback');}
     } else if (type === 'CANCEL_GAME') {
       strictObject(value, ['type']);
       if (!['ready','playing','paused'].includes(state.game.status)) throw new SessionError(409, 'Round not active');

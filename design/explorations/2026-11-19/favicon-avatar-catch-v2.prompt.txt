@@ -1,0 +1,17 @@
+Mode: built-in image_gen (transparent_background: true)
+Generated: 2026-11-19
+Source: favicon-avatar-catch-v2.png
+Browser assets: public/favicon.ico, public/favicon-32.png, public/favicon-192.png
+References: user-provided gameplay screenshot; public/avatar/body.png.
+Revision: represent the actual raised-hands avatar interaction and sage apron. Replaces the tomato-and-yellow-bowl browser icon. The v1 source remains preserved.
+Browser assets are downscaled with macOS sips; the ICO packages 16, 32, and 48px PNG entries.
+
+Use case: logo-brand
+Asset type: one production browser favicon for a motion-controlled food-catching cooking game.
+Primary request: Distill the actual gameplay in the reference screenshot into a compact, charming icon: a small person wearing a sage-green apron, raising BOTH cream mitten hands to catch one bright red tomato.
+Input images: Image 1 is a gameplay/action and color reference only; do not reproduce the photographed person's identity, interface, scenery or screenshot. Image 2 is the actual apron asset, a clothing and palette reference only.
+Subject and composition: Frontal upper-body avatar, very large simple circular cream head with no facial details, compact olive-green apron torso, both arms bent upward with plump raised mitten hands clearly visible beside the head. One bold red tomato with a tiny green crown hovers just above one raised palm, visibly within reaching distance. Compose all elements into ONE strong, close-fitting near-square silhouette with no excessive empty space. The raised arms are the defining feature. No bowl.
+Style/medium: Warm, friendly, simplified cut-paper inspired illustration with clean thick dark-olive/brown outlines. Reduce the detailed game art into a polished readable favicon. Use broad flat shapes and very sparse detail; omit the apron pocket, seams, buttons and small decorative marks. No fine paper texture.
+Color palette: Muted olive/sage apron, warm cream/oatmeal head and hands, dark warm olive/brown outlines, a saturated tomato-red food accent. Strong enough contrast at tiny size.
+Scene/backdrop: Genuine transparent background. No backing tile, no scenery.
+Constraints: One icon, centered and large, all parts visible, only a small transparent margin. Recognizable at 16x16 and 32x32 pixels. No real human face, hair, glasses, chef hat, bowl, plate, basket, utensils, lettering, text, UI, camera inset, sparkles, badges, extra food, shadows or gradients.

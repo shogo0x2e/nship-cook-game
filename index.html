@@ -1,2 +1,33 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" /><meta name="theme-color" content="#f7f5eb" /><meta name="description" content="からだを動かして食材をキャッチ。今日の気分から、親子のごはんを考えるローカルPoC。" /><title>もぐもぐキャッチ | 親子のごはんラボ</title></head><body><div id="app"></div><script type="module" src="/src/main.ts"></script></body></html>
+<html lang="ja" data-mode="production">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
+    <link rel="icon" href="/favicon.ico?v=2" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-32.png?v=2" sizes="32x32">
+    <link rel="icon" type="image/png" href="/favicon-192.png?v=2" sizes="192x192">
+    <meta name="description" content="子どもがゲームで選んだ食材と、ご家庭にある食材・調味料から、料理と親子の分担を提案する体験版です。">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="食材選びから始める、共働き家庭の親子のごはんづくり">
+    <meta property="og:description" content="子どもがゲームで選んだ食材と、ご家庭にある食材・調味料から、料理と親子の分担を提案する体験版です。">
+    <meta property="og:url" content="https://cookgame.shogo0x2e.com/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="食材選びから始める、共働き家庭の親子のごはんづくり">
+    <meta name="twitter:description" content="子どもがゲームで選んだ食材と、ご家庭にある食材・調味料から、料理と親子の分担を提案する体験版です。">
+    <title>食材選びから始める、共働き家庭の親子のごはんづくり</title>
+
+    <script type="module" src="/src/experience-main.ts"></script>
+  </head>
+  <body>
+    <div class="prototype-bar"><span>画面設計用プロトタイプ</span><button id="flow-toggle" aria-expanded="false" aria-controls="flow-panel">画面一覧</button></div>
+    <div class="review-layout">
+      <aside id="flow-panel" class="flow-panel" aria-label="試作の画面一覧"></aside>
+      <div class="app-shell">
+        <header class="app-header"><span id="actor"></span></header>
+        <main id="app" tabindex="-1"></main>
+        <footer class="app-footer">芝浦工業大学 ビジネスコンテスト チーム芝（北田、宮尾、岡部）</footer>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+/* Keep the complete camera image inside the play field, clear of the catch area. */
+.field.has-camera-preview{--camera-preview-width:clamp(104px,22%,176px);}
+.field.has-camera-preview .game-preview-wrap{
+ position:absolute;right:12px;bottom:12px;z-index:4;
+ display:block;width:var(--camera-preview-width);aspect-ratio:4/3;
+ margin:0;padding:0;overflow:hidden;pointer-events:none;
+ border:3px solid #fffdf3;border-radius:10px;background:#e3e9da;
+ box-shadow:0 2px 12px #23372330;
+}
+.field.has-camera-preview .game-preview-wrap .game-live-preview{
+ display:block;width:100%;height:100%;max-width:none;
+ object-fit:contain;transform:scaleX(-1);border-radius:0;background:#e3e9da;
+}
+.field.camera-field.has-camera-preview .tracking-note{
+ left:12px;right:calc(var(--camera-preview-width) + 24px);bottom:12px;
+ width:auto;max-width:none;transform:none;white-space:normal;
+ text-align:left;font-size:12px;line-height:1.7;padding:8px 10px;
+}
+@media(max-width:600px){
+ .field.has-camera-preview .game-preview-wrap{right:8px;bottom:8px;border-width:2px;border-radius:8px;}
+ .field.camera-field.has-camera-preview .tracking-note{left:8px;right:calc(var(--camera-preview-width) + 20px);bottom:8px;font-size:11px;padding:7px 9px;}
+}

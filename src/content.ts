@@ -1,4 +1,4 @@
-export type IngredientId = 'tomato' | 'carrot' | 'broccoli' | 'corn' | 'mushroom' | 'potato' | 'egg' | 'cheese';
+export type IngredientId = 'rice' | 'noodles' | 'bread' | 'chicken' | 'pork' | 'salmon' | 'onion' | 'cabbage' | 'pepper' | 'tomato' | 'carrot' | 'broccoli' | 'corn' | 'mushroom' | 'potato' | 'egg' | 'cheese';
 export const ingredients: { id: IngredientId; name: string; emoji: string; color: string; allergens: string[] }[] = [
   { id: 'tomato', name: 'トマト', emoji: '🍅', color: '#ed7465', allergens: [] },
   { id: 'carrot', name: 'にんじん', emoji: '🥕', color: '#f4a34b', allergens: [] },
@@ -8,6 +8,18 @@ export const ingredients: { id: IngredientId; name: string; emoji: string; color
   { id: 'potato', name: 'じゃがいも', emoji: '🥔', color: '#c8a370', allergens: [] },
   { id: 'egg', name: 'たまご', emoji: '🥚', color: '#e9c887', allergens: ['卵'] },
   { id: 'cheese', name: 'チーズ', emoji: '🧀', color: '#e8bd55', allergens: ['乳'] },
+];
+export const experienceIngredients: typeof ingredients = [
+  { id: 'rice', name: 'ごはん', emoji: '🍚', color: '#e5d6aa', allergens: [] },
+  { id: 'noodles', name: 'めん', emoji: '🍜', color: '#d9b571', allergens: [] },
+  { id: 'bread', name: 'パン', emoji: '🍞', color: '#d0a466', allergens: [] },
+  { id: 'chicken', name: 'とりにく', emoji: '🍗', color: '#d6a384', allergens: [] },
+  { id: 'pork', name: 'ぶたにく', emoji: '🥩', color: '#dca3a1', allergens: [] },
+  { id: 'salmon', name: 'さけ', emoji: '🐟', color: '#e5a087', allergens: [] },
+  { id: 'onion', name: 'たまねぎ', emoji: '🧅', color: '#c6a275', allergens: [] },
+  { id: 'cabbage', name: 'キャベツ', emoji: '🥬', color: '#94b57d', allergens: [] },
+  { id: 'pepper', name: 'ピーマン', emoji: '🫑', color: '#6ca069', allergens: [] },
+  ...ingredients.filter(food => ['carrot','potato','egg','tomato'].includes(food.id)),
 ];
 export type Recipe = {
   id: string; name: string; emoji: string; minutes: number; description: string;

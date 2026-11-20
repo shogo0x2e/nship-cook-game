@@ -47,7 +47,7 @@ def verify_image(image, revision):
         else:
             raise RuntimeError('Unauthenticated account access was accepted')
         # The production build must contain both entry points and all generated avatar sprites.
-        for path in ['/', '/poc.html', '/avatar/background.png', '/avatar/body.png',
+        for path in ['/', '/legacy.html', '/poc.html', '/avatar/background.png', '/avatar/body.png',
                      '/avatar/sleeve.png', '/avatar/hand.png']:
             request = urllib.request.Request(base + path, headers={'Host': 'localhost:8787'})
             with urllib.request.urlopen(request, timeout=5) as response:
@@ -58,6 +58,45 @@ def verify_image(image, revision):
                     assert data.startswith(b'\x89PNG\r\n\x1a\n'), path
                 else:
                     assert b'type="module"' in data, path
+        # Exercise the anonymous PoC against the actual read-only image and its durable volume.
+        with urllib.request.urlopen(urllib.request.Request(base + '/api/experience-version', headers={'Host': 'localhost:8787'}), timeout=5) as response:
+            flow = json.load(response)
+        assert flow['flow'] == 'anonymous-poc-v1' and flow['persistence'] == 'sqlite'
+        experience_id, key = '7K3M9R', uuid.uuid4().hex + uuid.uuid4().hex
+        payload = {'questionnaireVersion': flow['questionnaireVersion'], 'recipeVersion': flow['recipeVersion'],
+                   'conceptVersion': flow['conceptVersion'], 'deviceId': str(uuid.uuid4()), 'sequence': 1, 'age': 8, 'demo': True, 'stage': 'done',
+                   'selectedIngredients': ['rice'], 'evidence': {'rice': {'offered': 1, 'caught': 1}}, 'recipeId': 'curry',
+                   'child': {'answers': {'game_fun': 7, 'help_intent': 6}, 'playFrequency': 'two_to_three_days', 'comment': ''},
+                   'parent': {'answers': {'task_feasibility': 6, 'continued_use': 5, 'meal_preparation_ease': 5, 'child_initiative': 6}, 'comment': '', 'gameplayStatus': 'smooth', 'gameplayComment': 'CI demo', 'employmentStatus': 'yes'},
+                   'serviceFeedback': {'interestedFeatures': ['food_learning'], 'comment': 'CI demo'},
+                   'payment': {'kind': 'free', 'maxMonthlyYen': 0}, 'complete': True}
+        headers = {'Host': 'localhost:8787', 'Origin': 'https://cookgame.shogo0x2e.com',
+                   'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'}
+        request = urllib.request.Request(base + '/api/experiences/' + experience_id, data=json.dumps(payload).encode(), headers=headers, method='PUT')
+        with urllib.request.urlopen(request, timeout=5) as response:
+            saved = json.load(response)
+        assert saved['complete'] and saved['receipt'] == experience_id
+        with urllib.request.urlopen(request, timeout=5) as response:
+            assert json.load(response)['receipt'] == saved['receipt']
+        summary = json.loads(run('docker', 'exec', name, 'node', 'scripts/export-surveys.mjs'))
+        assert summary['count'] == 0  # CI/demo answers must not enter the real aggregate.
+        summary = json.loads(run('docker', 'exec', name, 'node', 'scripts/export-surveys.mjs', '--include-demo'))
+        assert summary['byChildPlayFrequency'] == {'two_to_three_days': 1}
+        assert summary['count'] == 1 and summary['featureInterests']['food_learning'] == 1 and summary['browserIdentifiers']['distinctBrowsers'] == 1
+        assets = json.loads(Path('src/experience-data.json').read_text())
+        paths = [r['image'] for r in assets['recipes']] + list({r['tasks'][0]['photo'] for r in assets['recipes']})
+        paths += ['/experience/assets/concept-' + slug + '.webp' for slug in ['game-recipe', 'food-learning', 'challenge-feedback', 'expert-recipes', 'family-schedule']]
+        paths += ['/experience/assets/concept-expert-recipes-v3.webp', '/experience/assets/concept-family-schedule-v3.webp', '/experience/assets/concept-family-schedule-v4.webp', '/experience/assets/household-vegetable-storage-v1.webp']
+        flow_photos = json.loads(Path('design/recipe-prototype/flow-photo-data.json').read_text())
+        paths += sorted({step['photo'] for recipe in flow_photos['recipes'].values() for step in recipe.values()})
+        paths += ['/experience/assets/household-fridge-v1.webp', '/experience/assets/intro-flow-v2.webp',
+                  '/experience/assets/concept-food-learning-v2.webp', '/experience/assets/concept-challenge-feedback-v2.webp']
+        for path in paths:
+            with urllib.request.urlopen(urllib.request.Request(base + path, headers={'Host': 'localhost:8787'}), timeout=5) as response:
+                assert response.headers['Content-Type'] == 'image/webp' and response.read(4) == b'RIFF', path
+        for path in ['/favicon.ico', '/favicon-32.png', '/favicon-192.png']:
+            with urllib.request.urlopen(urllib.request.Request(base + path, headers={'Host': 'localhost:8787'}), timeout=5) as response:
+                assert response.status == 200 and len(response.read()) > 100, path
     finally:
         subprocess.run(['docker', 'rm', '-f', name], check=False, stdout=subprocess.DEVNULL)
 

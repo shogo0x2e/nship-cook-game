@@ -1,5 +1,6 @@
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { mirroredTorsoX } from './game';
+import { reportDiagnostic } from './diagnostics';
 export type Tracking = { x: number | null; points: { x: number; y: number; visibility?: number }[]; inferenceMs: number; capturedAt: number; width: number; height: number };
 export interface CameraSource { start(video: HTMLVideoElement): Promise<void>; stop(): void }
 export class PoseCamera {
@@ -15,14 +16,18 @@ export class PoseCamera {
     this.stop();
     const generation = this.generation;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error('HTTPS または localhost で開いてください。カメラのない場合はおためし操作で遊べます。');
+    let stage:'pose_initialization'|'camera_start'='pose_initialization';
+    try {
     // Only local assets are used. No camera frames leave this device.
     const fileset = await FilesetResolver.forVisionTasks('/pose/wasm');
-    let model: PoseLandmarker;
-    const options = { baseOptions: { modelAssetPath: '/pose/pose_landmarker_lite.task' }, runningMode: 'VIDEO' as const, numPoses: 1, minPoseDetectionConfidence: .6, minPosePresenceConfidence: .6, minTrackingConfidence: .6, outputSegmentationMasks: false };
-    try { model = await PoseLandmarker.createFromOptions(fileset, { ...options, baseOptions: { ...options.baseOptions, delegate: 'GPU' } }); }
-    catch { model = await PoseLandmarker.createFromOptions(fileset, { ...options, baseOptions: { ...options.baseOptions, delegate: 'CPU' } }); }
+    const model = await PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: '/pose/pose_landmarker_lite.task', delegate: 'CPU' },
+      runningMode: 'VIDEO', numPoses: 1, minPoseDetectionConfidence: .6,
+      minPosePresenceConfidence: .6, minTrackingConfidence: .6, outputSegmentationMasks: false,
+    });
     if (generation !== this.generation) { model.close(); return; }
     this.model = model;
+    stage='camera_start';
     const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, max: 30 } } });
     if (generation !== this.generation) { stream.getTracks().forEach(t => t.stop()); return; }
     this.stream = stream; video.srcObject = stream;
@@ -33,16 +38,19 @@ export class PoseCamera {
       if (generation !== this.generation) return;
       if (!document.hidden && video.readyState >= 2 && video.currentTime !== this.lastVideoTime && now - this.lastInference >= 30) {
         this.lastInference = now; this.lastVideoTime = video.currentTime;
+        let tracking:Tracking;
         try {
           const started = performance.now();
           const result = model.detectForVideo(video, now);
           const points = result.landmarks[0] ?? [];
-          this.callback({ x: mirroredTorsoX(points), points, inferenceMs: performance.now() - started, capturedAt: started, width: video.videoWidth, height: video.videoHeight });
-        } catch { this.callback({ x: null, points: [], inferenceMs: 0, capturedAt: performance.now(), width: video.videoWidth, height: video.videoHeight }); }
+          tracking={ x: mirroredTorsoX(points), points, inferenceMs: performance.now() - started, capturedAt: started, width: video.videoWidth, height: video.videoHeight };
+        } catch(error) { reportDiagnostic('pose_inference',error); tracking={ x: null, points: [], inferenceMs: 0, capturedAt: performance.now(), width: video.videoWidth, height: video.videoHeight }; }
+        this.callback(tracking);
       }
       this.frame = requestAnimationFrame(tick);
     };
     this.frame = requestAnimationFrame(tick);
+    } catch(error) { if(generation===this.generation){reportDiagnostic(stage,error);this.stop();} throw error; }
   }
   stop(): void {
     this.generation++; cancelAnimationFrame(this.frame);

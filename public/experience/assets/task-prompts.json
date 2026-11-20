@@ -1,0 +1,29 @@
+{
+  "mode": "built-in image_gen; generate",
+  "assets": [
+    {
+      "id": "task-onion-peel",
+      "prompt": "Use case: photorealistic-natural\nAsset type: instructional photograph in a family cooking recipe app.\nStyle: candid photorealistic close-up of a kindergarten-aged child's natural hands at an ordinary clean wooden kitchen table, soft daylight, beige cotton sleeves, realistic materials, calm practical home cooking, landscape 3:2. Show one clear task; face outside frame. No text, logos, watermark, decorative food shapes, knives, flames, hot cookware or raw meat. Hands anatomically natural, child-sized utensil, a parent can steady the bowl at the edge if useful.\nAction: the child gently pulls a loose dry brown outer skin away from one whole yellow onion. An adult has loosened an edge beforehand. The partly peeled onion sits over a small clean bowl for peels. Clearly brown papery onion skin, no cutting or sharp tools."
+    },
+    {
+      "id": "task-cabbage-tear",
+      "prompt": "Use case: photorealistic-natural\nAsset type: instructional photograph in a family cooking recipe app.\nStyle: candid photorealistic close-up of a kindergarten-aged child's natural hands at an ordinary clean wooden kitchen table, soft daylight, beige cotton sleeves, realistic materials, calm practical home cooking, landscape 3:2. Show one clear task; face outside frame. No text, logos, watermark, decorative food shapes, knives, flames, hot cookware or raw meat. Hands anatomically natural, child-sized utensil, a parent can steady the bowl at the edge if useful.\nAction: the child tears a washed pale green cabbage leaf into bite-sized pieces over a plain bowl. Clearly a firm pale-green and white cabbage leaf, not lettuce. A few torn cabbage pieces in the bowl. No sink or running water."
+    },
+    {
+      "id": "task-egg-mash",
+      "prompt": "Use case: photorealistic-natural\nAsset type: instructional photograph in a family cooking recipe app.\nStyle: candid photorealistic close-up of a kindergarten-aged child's natural hands at an ordinary clean wooden kitchen table, soft daylight, beige cotton sleeves, realistic materials, calm practical home cooking, landscape 3:2. Show one clear task; face outside frame. No text, logos, watermark, decorative food shapes, knives, flames, hot cookware or raw meat. Hands anatomically natural, child-sized utensil, a parent can steady the bowl at the edge if useful.\nAction: the child gently mashes a fully cooked peeled hard-boiled egg with a small blunt fork inside a stable shallow bowl. Show yellow cooked yolk and solid cooked white, no liquid raw egg. The bowl is cool. Plain sandwich bread nearby indicates the egg filling's purpose."
+    },
+    {
+      "id": "task-pizza-top",
+      "prompt": "Use case: photorealistic-natural\nAsset type: instructional photograph in a family cooking recipe app.\nStyle: candid photorealistic close-up of a kindergarten-aged child's natural hands at an ordinary clean wooden kitchen table, soft daylight, beige cotton sleeves, realistic materials, calm practical home cooking, landscape 3:2. Show one clear task; face outside frame. No text, logos, watermark, decorative food shapes, knives, flames, hot cookware or raw meat. Hands anatomically natural, child-sized utensil, a parent can steady the bowl at the edge if useful.\nAction: the child places thin green bell pepper rings and small fresh tomato pieces on a slice of untoasted square sandwich bread with tomato sauce and a little shredded cheese. Bread rests on a cool plain plate. A second plain slice and prepared vegetable pieces nearby. Everything cold; no oven in frame."
+    },
+    {
+      "id": "task-potato-wash",
+      "prompt": "Use case: photorealistic-natural\nAsset type: instructional photograph in a family cooking recipe app.\nStyle: candid photorealistic close-up of a kindergarten-aged child's natural hands at an ordinary clean wooden kitchen table, soft daylight, beige cotton sleeves, realistic materials, calm practical home cooking, landscape 3:2. Show one clear task; face outside frame. No text, logos, watermark, decorative food shapes, knives, flames, hot cookware or raw meat. Hands anatomically natural, child-sized utensil, a parent can steady the bowl at the edge if useful.\nAction: the child gently rubs one whole unpeeled potato in a wide shallow bowl of clean water. Another whole potato and a carrot are nearby. No faucet or electrical device, no green or sprouted potatoes. Show washing vegetables as a practical preparation step, minimal splashing."
+    },
+    {
+      "id": "task-rice-loosen",
+      "prompt": "Use case: photorealistic-natural\nAsset type: instructional photograph in a family cooking recipe app.\nStyle: candid photorealistic close-up of a kindergarten-aged child's natural hands at an ordinary clean wooden kitchen table, soft daylight, beige cotton sleeves, realistic materials, calm practical home cooking, landscape 3:2. Show one clear task; face outside frame. No text, logos, watermark, decorative food shapes, knives, flames, hot cookware or raw meat. Hands anatomically natural, child-sized utensil, a parent can steady the bowl at the edge if useful.\nAction: the child uses a small rice paddle to gently loosen cooled cooked plain white rice in a stable plain bowl before an adult makes fried rice. Rice is white with no vegetables mixed in yet. A parent's hand steadies the bowl at the edge. No stove or hot pot."
+    }
+  ]
+}

@@ -9,17 +9,20 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { SessionError, strictObject } from './session-store.ts';
 import { AccountStore } from './account-store.ts';
 import { FamilyStore } from './family-store.ts';
+import { ExperienceStore } from './experience-store.ts';
+import {requireSurveyExportKey,surveySnapshot} from './survey-export.ts';
+import { questionnaireVersion, recipeVersion, conceptVersion } from '../src/experience-protocol.ts';
 import type { Role } from '../src/shared.ts';
 const MAX_BODY=16*1024;
-const MIME:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.task':'application/octet-stream','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2'};
-export type ServerOptions={host?:string;port?:number;dist?:string;tlsCert?:string;tlsKey?:string;dataPath?:string;allowedOrigins?:string[]};
+const MIME:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.task':'application/octet-stream','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2'};
+export type ServerOptions={host?:string;port?:number;dist?:string;tlsCert?:string;tlsKey?:string;dataPath?:string;allowedOrigins?:string[];surveyExportToken?:string};
 function json(res:ServerResponse,status:number,data:unknown){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));}
-async function body(req:IncomingMessage):Promise<unknown>{
+async function body(req:IncomingMessage,maxBytes=MAX_BODY):Promise<unknown>{
   if(req.headers['content-type']?.split(';')[0].trim()!=='application/json')throw new SessionError(415,'Use application/json');
   if(req.headers['content-encoding']&&req.headers['content-encoding']!=='identity')throw new SessionError(415,'Content encoding not supported');
-  const length=req.headers['content-length'];if(length&&(!/^\d+$/.test(length)||Number(length)>MAX_BODY))throw new SessionError(413,'Request too large');
+  const length=req.headers['content-length'];if(length&&(!/^\d+$/.test(length)||Number(length)>maxBytes))throw new SessionError(413,'Request too large');
   const chunks:Buffer[]=[];let bytes=0;
-  for await(const chunk of req){bytes+=chunk.length;if(bytes>MAX_BODY)throw new SessionError(413,'Request too large');chunks.push(Buffer.from(chunk));}
+  for await(const chunk of req){bytes+=chunk.length;if(bytes>maxBytes)throw new SessionError(413,'Request too large');chunks.push(Buffer.from(chunk));}
   try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new SessionError(400,'Invalid JSON');}
 }
 class Limiter {
@@ -32,6 +35,8 @@ class Limiter {
 }
 export async function createSessionServer(options:ServerOptions={}){
   const host=options.host??'127.0.0.1';const port=options.port??8787;const dist=resolve(options.dist??fileURLToPath(new URL('../dist',import.meta.url)));const accounts=new AccountStore(options.dataPath??':memory:');const store=new FamilyStore(accounts);const limiter=new Limiter();
+  if(options.surveyExportToken!==undefined&&!/^[a-f0-9]{64}$/.test(options.surveyExportToken))throw new Error('Invalid survey export key');
+  const experiences=new ExperienceStore(accounts.db);
   if(Boolean(options.tlsCert)!==Boolean(options.tlsKey))throw new Error('Set both TLS_CERT and TLS_KEY');
   const secure=Boolean(options.tlsCert);const scheme=secure?'https':'http';
   const permittedHosts=new Set(['localhost','127.0.0.1','[::1]']);
@@ -42,7 +47,7 @@ export async function createSessionServer(options:ServerOptions={}){
   const handler=async(req:IncomingMessage,res:ServerResponse)=>{
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');
     res.setHeader('Permissions-Policy','camera=(self), microphone=(), geolocation=()');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.googletagmanager.com; style-src 'self'; img-src 'self' data: https://www.google-analytics.com https://region1.google-analytics.com; media-src 'self' blob:; connect-src 'self' https://sentry.x2e.me https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     try{
       const authority=req.headers.host;if(!authority)throw new SessionError(400,'Host required');
       let requested:URL;try{requested=new URL(`${scheme}://${authority}${req.url??'/'}`);}catch{throw new SessionError(400,'Invalid URL');}
@@ -62,6 +67,25 @@ export async function createSessionServer(options:ServerOptions={}){
         const secureCookie=secure||[...extraOrigins].some(value=>value.startsWith('https://'));
         const setCookie=(value:string,age:number)=>res.setHeader('Set-Cookie',`${cookieName}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${secureCookie?'; Secure':''}`);
         if(path==='/api/version'&&req.method==='GET'){json(res,200,{revision:process.env.APP_REVISION??'development',authentication:'family-account-v1'});return;}
+        if(path==='/api/experience-version'&&req.method==='GET'){
+          json(res,200,{flow:'anonymous-poc-v1',questionnaireVersion,recipeVersion,conceptVersion,persistence:'sqlite'});return;
+        }
+        if(path==='/api/operator/survey-snapshot'){
+          limiter.check('survey-export',identity,60,60_000);
+          requireSurveyExportKey(options.surveyExportToken,req.headers.authorization);
+          if(req.method!=='GET')throw new SessionError(405,'Method not allowed');
+          if(requested.search)throw new SessionError(400,'Query parameters not supported');
+          json(res,200,surveySnapshot(accounts.db));return;
+        }
+        const experiencePath=/^\/api\/experiences\/([23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}|[0-9a-f-]{36})$/i.exec(path);
+        if(experiencePath){
+          const key=req.headers.authorization?.match(/^Bearer ([0-9a-f]{64})$/)?.[1];
+          limiter.check('experience-global',identity,1200,60_000);
+          limiter.check('experience-id',experiencePath[1],120,60_000);
+          if(req.method==='PUT'){json(res,200,experiences.save(experiencePath[1],key,await body(req,64*1024)));return;}
+          if(req.method==='GET'){json(res,200,experiences.get(experiencePath[1],key));return;}
+          throw new SessionError(405,'Method not allowed');
+        }
         if((path==='/api/auth/register'||path==='/api/auth/login')&&req.method==='POST'){
           limiter.check('auth-ip',identity,20,60_000);
           const input=await body(req);const fields=strictObject(input,['username','password']);
@@ -98,13 +122,15 @@ export async function createSessionServer(options:ServerOptions={}){
   const server=secure?https.createServer({cert:await readFile(options.tlsCert!),key:await readFile(options.tlsKey!),maxHeaderSize:8192},handler):http.createServer({maxHeaderSize:8192},handler);
   server.requestTimeout=15_000;server.headersTimeout=10_000;server.keepAliveTimeout=5_000;
   server.once('close',()=>accounts.close());
-  return{server,store,listen:()=>new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.off('error',reject);resolve();});})};
+  return{server,store,experiences,listen:()=>new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,host,()=>{server.off('error',reject);resolve();});})};
 }
 if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url){
   const host=process.env.HOST??'127.0.0.1';const port=Number(process.env.PORT??8787);
   if(!Number.isInteger(port)||port<1||port>65535)throw new Error('Invalid PORT');
   const allowedOrigins=(process.env.ALLOWED_ORIGINS??'').split(',').filter(Boolean);
-  const service=await createSessionServer({host,port,tlsCert:process.env.TLS_CERT,tlsKey:process.env.TLS_KEY,allowedOrigins,dataPath:resolve(process.env.DATA_DIR??'data','cookgame.sqlite')});
+  const exportKeyPath=resolve(process.env.DATA_DIR??'data','survey-export-token');
+  const surveyExportToken=await readFile(exportKeyPath,'utf8').then(value=>value.trim()).catch(error=>{if(error.code==='ENOENT')return undefined;throw error;});
+  const service=await createSessionServer({host,port,surveyExportToken,tlsCert:process.env.TLS_CERT,tlsKey:process.env.TLS_KEY,allowedOrigins,dataPath:resolve(process.env.DATA_DIR??'data','cookgame.sqlite')});
   await service.listen();console.log(`Local cooking session server: ${process.env.TLS_CERT?'https':'http'}://${host}:${port}`);
   // No request, address, body, pairing-code, or token logs.
 }

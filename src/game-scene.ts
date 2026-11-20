@@ -1,16 +1,36 @@
-import { basketWidth, caughtAtBasket, freshEvidence, ingredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Evidence } from './game';
+import { FramingGate } from './camera-framing';
+import { TrackingStability } from './tracking-stability';
+import { TrackingDiagnostics } from './tracking-diagnostics';
+import { reportDiagnostic } from './diagnostics';
+// @ts-expect-error Shared HTML view helpers are intentionally plain JavaScript.
+import { cameraGuide, framingFeedbackHTML, bindFramingFeedback } from '../design/recipe-prototype/camera-panel.js';
+import { basketWidth, caughtAtBasket, freshEvidence, ingredients as legacyIngredients, lanes, maxPairs, pairSchedule, plateCount, plateSize, type IngredientId, type Pair, type Evidence } from './game';
 import { PoseCamera, type Tracking, type CameraSource } from './pose';
-import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, trackingTimeout, type DrawArm, type Geometry } from './avatar';
+import { avatarLayout, gestureTargets, GestureHold, firstHandCatch, placeArm, poseArms, restingArms, smoothAngle, type DrawArm, type Geometry } from './avatar';
 import { AvatarRenderer } from './avatar-renderer';
+import { challengeSeconds, challengeMaxPairs, catchPoints, challengeScore, type ChallengeResult, type CatchMoment, type PlayVariant } from './challenge';
 
-type Options = { input: 'camera' | 'demo'; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
-export function mountGame(container: HTMLElement, options: Options) {
+type Options = { startWhenFramed?:boolean; catalog?: typeof legacyIngredients; schedule?: Pair[]; showPreview?: boolean; autoPrepare?: boolean; localResult?: boolean; input: 'camera' | 'demo'; variant?:PlayVariant; best?:number; allowed: IngredientId[]; canPlay: () => boolean; onStatus: (status:'playing'|'paused') => Promise<unknown>; onFinish: (evidence:Evidence,challenge?:ChallengeResult) => Promise<unknown>; cameraFactory?: (callback: (tracking: Tracking) => void) => CameraSource };
+export function mountGame(container: HTMLElement, options: Options & {landscapeOnly?:boolean}) {
+  const ingredients = options.catalog ?? legacyIngredients;
   const mode = options.input;
+  const diagnostics=new TrackingDiagnostics((code,metrics)=>reportDiagnostic(code,undefined,metrics));
+  let diagnosticsActive=true;
+  const orientationBlocked = () => Boolean(options.landscapeOnly && window.innerHeight > window.innerWidth);
+  let framingPending=Boolean(options.startWhenFramed&&mode==='camera');
+  const framing=framingPending?new FramingGate():null;
+  const challenge=options.variant==='challenge';
+  let activeSeconds=0,spawnAtMs=0,countdown=challenge?3:0;
+  const catches:CatchMoment[]=[];
+  let result:ChallengeResult|undefined;
+  let score=0,scorePulse=0;
+  const scorePops:{x:number;y:number;points:number;life:number;plate:boolean}[]=[];
   let phase: 'setup'|'playing'|'paused'|'finished' = 'setup';
   let disposed = false;
   let cameraState = mode === 'camera' ? 'idle' : 'ready';
   let cameraMessage = '';
   let targetArms = restingArms(), displayedArms = restingArms();
+  const trackingStability=new TrackingStability();
   let lastPose = -Infinity, sampleGap = 0;
   let previousHands: DrawArm[] = [], wasTracked = false;
   const gestureHold = new GestureHold();
@@ -18,12 +38,14 @@ export function mountGame(container: HTMLElement, options: Options) {
   let assetsReady = mode === 'demo';
   const avatar = mode === 'camera' ? new AvatarRenderer() : null;
   let lastTracking: Tracking | null = null;
-  let evidence = freshEvidence();
+  let evidence = options.catalog ? Object.fromEntries(ingredients.map(food => [food.id, {offered:0,caught:0}])) as Evidence : freshEvidence();
   let basketX = .5, targetX = .5, lastFrame = 0, animation = 0;
   // Feel knobs: fall speed (field heights per second), pause between pairs, and plate celebration length.
-  const fallSpeed = .22, pairGap = .5, celebration = 1.5;
+  let fallSpeed = challenge ? .34 : .22;
+  const pairGap = challenge ? .18 : .5, celebration = challenge ? .45 : 1.5;
   const foods = ingredients.filter(i => options.allowed.includes(i.id)).map(i => i.id);
-  const schedule = pairSchedule(foods, maxPairs);
+  const pairLimit=challenge?challengeMaxPairs:maxPairs;
+  const schedule = options.schedule ?? pairSchedule(foods, pairLimit);
   const emojiOf = (id: IngredientId) => ingredients.find(i => i.id === id)!.emoji;
   // One pair is on screen at a time. The unpicked one floats away ('leaving'); nothing is ever marked wrong.
   let items: {id:IngredientId;x:number;y:number;rotation:number;leaving:boolean;life:number}[] = [];
@@ -32,23 +54,60 @@ export function mountGame(container: HTMLElement, options: Options) {
   let spawned = 0, gap = .8, celebrate = 0, bounce = 0;
   let audio: AudioContext | null = null;
   const $ = <T extends HTMLElement>(selector:string) => container.querySelector<T>(selector);
-  container.innerHTML = `<div class="game-heading"><span class="pill">${mode === 'camera' ? 'すきなほうへ、てをのばそう！' : 'カメラなし・おためし'}</span><span class="game-counter" id="counter">おさら <b>1</b> / ${plateCount}</span></div><section class="field ${mode === 'camera' ? 'camera-field' : ''}" id="field" aria-label="${mode === 'camera' ? '座ったまま手を伸ばして、ふたつのうち ひとつを えらぶ' : '左右にかごを動かして、ふたつのうち ひとつを えらぶ'}"><video id="camera" autoplay muted playsinline class="camera-video avatar-source" ${mode === 'demo' ? 'hidden':''}></video><div class="field-tint"></div><canvas id="game-canvas" tabindex="0" role="img" aria-label="食材キャッチの遊び場"></canvas><div id="tracking-note" class="tracking-note" role="status"></div><div class="game-overlay setup-overlay"><div class="overlay-card"><span class="overlay-icon">${mode === 'camera' ? '🌱' : '🧺'}</span><h2>${mode==='camera'?'すわって、てをのばそう。':'かごを、左右へ。'}</h2><p>${mode==='camera'?'顔と両ひじ・両手が うつるようにしてね。<br>肩より上に手をのばして、すきな食材にタッチ。<br>どっちでも、とらなくても、だいじょうぶ。':'ふたつ おちてくるよ。すきなほうを ひとつ。<br>どっちでも、とらなくても、だいじょうぶ。'}</p><p class="camera-status" id="camera-status" role="status">${mode==='camera'?'映像はこのタブレットの中だけで使います。':'映像は使いません。'}</p>${mode==='camera'?'<button class="button primary" data-game="prepare-camera">カメラを じゅんびする</button>':''}<button class="button primary" id="start-button" data-game="start" ${mode==='camera'?'disabled':''}>はじめる →</button></div></div></section><div class="game-bottom"><div class="caught-strip"><span>きょうの おさら</span><div class="plates" id="plates"></div></div><div class="game-actions"></div></div><p class="game-help">${mode==='camera'?'すわったまま、肩より上に手をのばしてね。手の輪がタッチの目印だよ。':'指・マウスを左右へ / ← → キーでも動かせます。おさらに 3つ のせよう。'}</p>${mode === 'camera' ? '<details class="tracking-debug"><summary>大人向け：カメラと検出の確認</summary><div class="debug-content"><canvas id="pose-debug" width="320" height="240" aria-label="端末内のカメラと肩・肘・手首の検出"></canvas><div><p id="pose-metrics"></p><p>緑の点：検出できています。点が途切れたら、顔と両ひじ・両手が入るようにカメラを調整してください。立ったり歩いたりする必要はありません。</p><p>この映像・点・顔画像は端末内だけで使い、送信・保存しません。</p></div></div></details>' : ''}`;
+  container.innerHTML = `<div class="game-heading"><span class="pill">${mode === 'camera' ? 'ふたつのうち、すきなたべものに てをのばそう！' : 'カメラなし・おためし'}</span><span class="game-counter" id="counter">おさら <b>1</b> / ${plateCount}</span></div><section class="field ${mode === 'camera' ? 'camera-field' : ''}" id="field" aria-label="${mode === 'camera' ? '座ったまま手を伸ばして、ふたつのうち ひとつを えらぶ' : '左右にかごを動かして、ふたつのうち ひとつを えらぶ'}"><video id="camera" autoplay muted playsinline class="camera-video avatar-source" ${mode === 'demo' ? 'hidden':''}></video><div class="field-tint"></div><canvas id="game-canvas" tabindex="0" role="img" aria-label="食材キャッチの遊び場"></canvas><div id="tracking-note" class="tracking-note" role="status"></div><div class="game-overlay setup-overlay"><div class="overlay-card"><span class="overlay-icon">${mode === 'camera' ? '🌱' : '🧺'}</span><h2>${mode==='camera'?'すわって、てをのばそう。':'かごを、左右へ。'}</h2><p>${mode==='camera'?'顔と両ひじ・両手が うつるようにしてね。<br>肩より上に手をのばして、すきな食材にタッチ。<br>どっちでも、とらなくても、だいじょうぶ。':'ふたつ おちてくるよ。すきなほうを ひとつ。<br>どっちでも、とらなくても、だいじょうぶ。'}</p><p class="camera-status" id="camera-status" role="status">${mode==='camera'?'映像はこのタブレットの中だけで使います。':'映像は使いません。'}</p>${mode==='camera'?'<button class="button primary" data-game="prepare-camera">カメラを じゅんびする</button>':''}<button class="button primary" id="start-button" data-game="start" ${mode==='camera'?'disabled':''}>はじめる →</button></div></div></section><div class="game-bottom"><div class="caught-strip"><span>きょうの おさら</span><div class="plates" id="plates"></div></div><div class="game-actions"></div></div><p class="game-help">${mode==='camera'?'すわったまま、肩より上に手をのばしてね。手の輪がタッチの目印だよ。':'指・マウスを左右へ / ← → キーでも動かせます。おさらに 3つ のせよう。'}</p>${mode === 'camera' ? '<details class="tracking-debug"><summary>大人向け：カメラと検出の確認</summary><div class="debug-content"><canvas id="pose-debug" width="320" height="240" aria-label="端末内のカメラと肩・肘・手首の検出"></canvas><div><p id="pose-metrics"></p><p>緑の点：検出できています。点が途切れたら、顔と両ひじ・両手が入るようにカメラを調整してください。立ったり歩いたりする必要はありません。</p><p>この映像・点・顔画像は端末内だけで使い、送信・保存しません。</p></div></div></details>' : ''}`;
   const canvas = $<HTMLCanvasElement>('#game-canvas')!;
   const field = $('#field')!;
+  const orientationNotice=document.createElement('section');
+  const touchDevice=navigator.maxTouchPoints>0;
+  const orientationTitle=touchDevice?'端末を横にしてください。':'ウィンドウを横長にしてください。';
+  orientationNotice.className='landscape-notice';orientationNotice.setAttribute('aria-label',orientationTitle);
+  orientationNotice.innerHTML=`<svg viewBox="0 0 120 100" aria-hidden="true"><rect x="24" y="24" width="72" height="48" rx="7" fill="none" stroke="currentColor" stroke-width="4"/><path d="M20 70C4 42 21 14 47 10m-8-7 10 7-9 9M100 28c17 28 0 56-28 60m9 8-11-8 10-9" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h2>${orientationTitle}</h2><p>ゲームは横画面で遊びます。<br>${touchDevice?'横にすると':'ウィンドウを横長にすると'}、そのまま続けられます。</p><button type="button" class="text-action" data-action="skip-game">ゲームを終了して先に進む</button>`;
+  if(options.landscapeOnly)container.append(orientationNotice);
+  function updateOrientation(){const blocked=orientationBlocked();orientationNotice.hidden=!blocked;field.inert=blocked;container.dataset.orientationBlocked=String(blocked);}
+  updateOrientation();
+  let updateFraming:((result:ReturnType<FramingGate['sample']>)=>void)|undefined;
+  if(framingPending){
+    container.classList.add('is-framing');field.classList.add('framing-field');
+    $('.setup-overlay')?.remove();
+    const overlay=document.createElement('div');overlay.className='game-overlay framing-overlay';
+    overlay.innerHTML=cameraGuide+'<div class="framing-countdown" hidden><span></span><small>もうすぐ はじまるよ</small></div><div class="framing-game-feedback">'+framingFeedbackHTML()+'<button class="button secondary small" data-game="prepare-camera" hidden>もう一度カメラを起動</button></div>';
+    field.append(overlay);updateFraming=bindFramingFeedback(overlay,field);
+    $('.game-heading .pill')!.textContent='カメラの写りを確認しています';
+  }
+  if(challenge){
+    container.classList.add('challenge-game');field.dataset.variant='challenge';
+    $('#counter')!.innerHTML=`あと <b id="challenge-time">${challengeSeconds}</b> 秒`;
+    const hud=document.createElement('div');hud.className='challenge-hud';
+    hud.innerHTML=`<div><span>SCORE</span><strong id="live-score">0</strong></div><div class="live-best"><span>自己ベスト</span><strong>${(options.best??0).toLocaleString('ja-JP')}</strong><span id="best-target">${options.best?'記録をこえよう':'はじめての記録をつくろう'}</span></div><progress id="challenge-clock" max="${challengeSeconds}" value="${challengeSeconds}" aria-label="残り時間"></progress>`;
+    field.before(hud);
+    $('.setup-overlay h2')!.textContent='45秒、好きな食材をキャッチ。';
+    $('.setup-overlay .overlay-card>p')!.innerHTML='すばやく取るとボーナス。3個でおさら完成！<br>どの食材も同じ点。見送りの減点はありません。';
+    $('.game-help')!.textContent=mode==='camera'?'好きなほうへ手をのばそう。カメラが見失った間は、時間も止まります。':'指・マウス・← → キーで移動。見送っても減点なし。';
+  }
   const video = $<HTMLVideoElement>('#camera')!;
+  const preview = options.showPreview && mode === 'camera' ? document.createElement('video') : null;
+  if (preview) { preview.autoplay = true; preview.muted = true; preview.playsInline = true; preview.className = 'game-live-preview'; preview.setAttribute('aria-label', 'ゲーム中のカメラプレビュー'); const wrap = document.createElement('div'); wrap.className = 'game-preview-wrap'; wrap.append(preview); field.classList.add('has-camera-preview'); field.append(wrap); }
   const camera = (options.cameraFactory ?? (callback => new PoseCamera(callback)))(tracking => {
     if (disposed) return;
+    framing?.observe(tracking.points,tracking.capturedAt,performance.now());
     if (lastTracking) sampleGap = tracking.capturedAt - lastTracking.capturedAt;
-    lastTracking = tracking; lastPose = tracking.capturedAt;
+    lastTracking = tracking; lastPose = performance.now();
     targetArms = poseArms(tracking.points, tracking.width, tracking.height);
+    if(!document.hidden&&!orientationBlocked()&&phase!=='paused')diagnostics.observe({at:tracking.capturedAt,inferenceMs:tracking.inferenceMs,width:tracking.width,height:tracking.height,arms:targetArms});
+    trackingStability.observe(targetArms.every(arm=>arm.valid),tracking.capturedAt,performance.now());
     avatar?.updateFace(tracking.points, video, performance.now());
     updateTracking();
   });
-  void avatar?.ready.then(() => { if (!disposed) { assetsReady = true; updateTracking(); } }).catch(() => {
+  void avatar?.ready.then(() => { if (!disposed) { assetsReady = true; updateTracking(); } }).catch(error => {
+    reportDiagnostic('asset_load',error);
     if (!disposed) { cameraState = 'error'; cameraMessage = '絵を読み込めませんでした。ページを再読み込みしてください。'; updateTracking(); }
   });
-  const isTracked = () => targetArms.every(arm => arm.valid) && performance.now() - lastPose < trackingTimeout;
+  const isTracked = () => trackingStability.sample(performance.now()).control;
   function updateTracking() {
+    if(framingPending&&(cameraState==='loading'||cameraState==='error')){
+      const text=cameraState==='error'?cameraMessage:'カメラと姿勢の検出を準備しています…';
+      const message=$('.framing-message');if(message&&message.textContent!==text)message.textContent=text;
+    }
     const valid = isTracked();
     const status = $('#camera-status');
     const message = cameraState === 'error' ? cameraMessage : cameraState === 'loading' ? 'カメラと姿勢モデルを準備中…' : !assetsReady ? '絵を準備中…' : cameraState === 'ready' && valid ? '手をかさねて、輪がいっぱいになるまで まってね。' : cameraState === 'ready' ? '顔と両ひじ・両手を、うつしてね。' : '';
@@ -56,14 +115,16 @@ export function mountGame(container: HTMLElement, options: Options) {
     if (mode === 'camera') for (const button of container.querySelectorAll<HTMLButtonElement>('[data-game="start"], [data-game="resume"]')) button.disabled = cameraState !== 'ready' || !valid || !assetsReady || !options.canPlay();
   }
   async function prepareCamera() {
+    if(orientationBlocked())return;
     if(cameraState==='loading'||cameraState==='ready')return;
     if(!options.cameraFactory && (!isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
+      reportDiagnostic('camera_start',new DOMException('Camera API unavailable','NotSupportedError'));
       cameraState='error';cameraMessage='カメラには信頼済みのHTTPSが必要です。大人の画面でカメラなしを選び直すこともできます。';updateTracking();return;
     }
     cameraState='loading';updateTracking();
     const prepare=$<HTMLButtonElement>('[data-game="prepare-camera"]');if(prepare)prepare.disabled=true;
-    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;cameraState='ready'; field.classList.add('camera-prepared'); showGestureControls('start'); updateTracking(); }
-    catch(error){if(disposed)return;camera.stop();cameraState='error'; const name=error instanceof Error?error.name:'';cameraMessage=name==='NotAllowedError'?'カメラが許可されていません。大人の人に確認してね。':name==='NotFoundError'?'カメラが見つかりません。大人の人に確認してね。':!isSecureContext?'カメラには信頼済みのHTTPSが必要です。大人の人に確認してね。':'カメラを使えません。大人の人に確認してね。'; if(prepare){prepare.disabled=false;prepare.textContent='もう一度 じゅんびする';}updateTracking();}
+    try { await camera.start($<HTMLVideoElement>('#camera')!); if(disposed)return;if(preview){preview.srcObject=video.srcObject;void preview.play().catch(()=>{});}cameraState='ready'; field.classList.add('camera-prepared'); if(!framingPending)showGestureControls('start'); updateTracking(); }
+    catch(error){if(disposed)return;camera.stop();cameraState='error'; const name=error instanceof Error?error.name:'';cameraMessage=name==='NotAllowedError'?'カメラが許可されていません。大人の人に確認してね。':name==='NotFoundError'?'カメラが見つかりません。大人の人に確認してね。':!isSecureContext?'カメラには信頼済みのHTTPSが必要です。大人の人に確認してね。':'カメラを使えません。大人の人に確認してね。'; if(prepare){prepare.hidden=false;prepare.disabled=false;prepare.textContent='もう一度 じゅんびする';}updateTracking();}
   }
   function showGestureControls(action: 'start' | 'resume', message = '') {
     container.querySelector('.game-overlay')?.remove();
@@ -83,15 +144,17 @@ export function mountGame(container: HTMLElement, options: Options) {
     });
   }
   function beginPlaying() {
+    if(orientationBlocked())return;
     if (disposed || !['setup', 'paused'].includes(phase) || !options.canPlay()) return;
     if (mode === 'camera' && (cameraState !== 'ready' || !assetsReady || !isTracked())) return;
+    if(framingPending){framingPending=false;container.classList.remove('is-framing');field.classList.remove('framing-field');$('.game-heading .pill')!.textContent='ふたつのうち、すきなたべものに てをのばそう！';}
     startAudio(); phase = 'playing'; gestureHold.reset(); gestureProgress = 0; gestureTarget = null;
     previousHands = []; wasTracked = false;
     container.querySelector('.game-overlay')?.remove(); refreshActions(); canvas.focus({preventScroll:true});
     void options.onStatus('playing').catch(() => pause('つながりを確認してから、つづけてね。'));
   }
   function updateGesture(hands: DrawArm[], layout: Geometry, dt: number, tracked: boolean) {
-    if (mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
+    if (framingPending || mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
     if (!tracked || !options.canPlay()) {
       gestureHold.reset(phase === 'paused'); gestureProgress = 0; gestureTarget = null;
       field.dataset.gestureProgress = '0'; return;
@@ -105,7 +168,7 @@ export function mountGame(container: HTMLElement, options: Options) {
     if (gestureProgress >= 1) beginPlaying();
   }
   function drawGestureButtons(ctx: CanvasRenderingContext2D, layout: Geometry) {
-    if (mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
+    if (framingPending || mode !== 'camera' || cameraState !== 'ready' || (phase !== 'setup' && phase !== 'paused')) return;
     const ready = assetsReady && isTracked() && options.canPlay();
     const label = phase === 'setup' ? 'はじめる' : 'つづける';
     const targets = gestureTargets(layout);
@@ -130,34 +193,60 @@ export function mountGame(container: HTMLElement, options: Options) {
     card.querySelector('p')!.textContent=message;overlay.appendChild(card);field.appendChild(overlay);refreshActions();
   }
   async function submitResult(){
-    const message=$('#result-message');if(message)message.textContent='結果を大人に送っています…';
-    try{await options.onFinish(evidence);}catch{if(disposed)return;if(message)message.textContent='送れませんでした。つながったら、もう一度送ってね。';const retry=$('[data-game="retry-result"]');if(retry)retry.hidden=false;}
+    const message=$('#result-message');if(message)message.textContent=options.localResult?'結果を表示しています…':'結果を大人に送っています…';
+    try{await options.onFinish(evidence,result);}catch{if(disposed)return;if(message)message.textContent='送れませんでした。つながったら、もう一度送ってね。';const retry=$('[data-game="retry-result"]');if(retry)retry.hidden=false;}
   }
-  function finish(){if(phase==='finished'||disposed)return;phase='finished';camera.stop();video.srcObject=null;void audio?.close().catch(()=>{});audio=null;avatar?.destroy();cancelAnimationFrame(animation);const served=plates.filter(plate=>plate.length);container.innerHTML='<div class="child-center"><h1>おしまい！</h1>'+(served.length?`<div class="result-plates"><span>きょうの おさら</span>${platesHtml(served)}</div>`:'')+'<p id="result-message">結果を大人に送っています…</p><button class="button primary" data-game="retry-result" hidden>もう一度 送る</button></div>';void submitResult();}
+  function finish(completed=false){if(phase==='finished'||disposed)return;phase='finished';if(challenge)result={activeMs:completed?challengeSeconds*1000:Math.min(challengeSeconds*1000,Math.round(activeSeconds*1000)),completed,catches:[...catches]};camera.stop();video.srcObject=null;if(preview)preview.srcObject=null;void audio?.close().catch(()=>{});audio=null;avatar?.destroy();cancelAnimationFrame(animation);const served=plates.filter(plate=>plate.length);container.innerHTML='<div class="child-center"><h1>おしまい！</h1>'+(served.length?`<div class="result-plates"><span>きょうの おさら</span>${platesHtml(served)}</div>`:'')+'<p id="result-message">結果を大人に送っています…</p><button class="button primary" data-game="retry-result" hidden>もう一度 送る</button></div>';void submitResult();}
 function tick(now: number) {
   if (disposed || phase === 'finished' || !canvas || !field) return;
   const dt = lastFrame ? Math.min((now - lastFrame) / 1000, .07) : 0; lastFrame = now;
-  const tracked = mode === 'demo' || (assetsReady && cameraState === 'ready' && isTracked());
+  const tracked = !orientationBlocked() && (mode === 'demo' || (assetsReady && cameraState === 'ready' && isTracked()));
   const layout = avatarLayout(field.clientWidth, field.clientHeight);
   if (mode === 'camera') {
+    const active=!document.hidden&&!orientationBlocked()&&phase!=='paused';
+    if(!active&&diagnosticsActive)diagnostics.reset();
+    diagnosticsActive=active;
+    if(active&&cameraState==='ready')diagnostics.poll(now);
     updateTracking();
-    displayedArms = targetArms.map((arm, i) => arm.valid && now-lastPose < trackingTimeout ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: false, raised: false }) as typeof targetArms;
+    const feedback=trackingStability.sample(performance.now());
+    displayedArms = targetArms.map((arm, i) => tracked&&arm.valid ? { ...arm, upper: smoothAngle(displayedArms[i].upper, arm.upper, dt), lower: smoothAngle(displayedArms[i].lower, arm.lower, dt) } : { ...displayedArms[i], valid: feedback.visible&&displayedArms[i].valid, raised: feedback.visible&&displayedArms[i].raised }) as typeof targetArms;
   }
+  if(framingPending&&cameraState==='ready'&&assetsReady&&framing){const result=framing.sample(now,!document.hidden&&!orientationBlocked());updateFraming?.(result);if(result.ready)beginPlaying();}
   const hands = displayedArms.map((arm, i) => placeArm({ ...arm, valid: tracked && arm.valid }, i, layout));
   const note = $('#tracking-note');
-  if (note) note.textContent = mode === 'camera' && !tracked && phase === 'playing' ? '両ひじと両手をうつしてね。時間は止まっているよ。' : '';
-  if (mode === 'camera') field.dataset.tracked = String(tracked);
+  const feedback=trackingStability.sample(performance.now());
+  const noteText=mode==='camera'&&!feedback.visible&&phase==='playing'?'両ひじと両手をうつしてね。時間は止まっているよ。':'';
+  if(note&&note.textContent!==noteText)note.textContent=noteText;
+  if(mode==='camera'){
+    if(field.dataset.tracked!==String(tracked))field.dataset.tracked=String(tracked);
+    if(field.dataset.trackingVisible!==String(feedback.visible))field.dataset.trackingVisible=String(feedback.visible);
+  }
   field.dataset.phase = phase;
   updateGesture(hands, layout, dt, tracked);
   basketX += (targetX - basketX) * (1 - Math.exp(-dt * 13));
   if (phase === 'playing' && tracked) {
+    if(challenge&&countdown>0){
+      const previous=Math.ceil(countdown);countdown=Math.max(0,countdown-dt);
+      if(Math.ceil(countdown)!==previous)tone(countdown===0?1047:523,0,.1);
+      draw();drawDebug(now);animation=requestAnimationFrame(tick);return;
+    }
+    if(challenge){
+      activeSeconds=Math.min(challengeSeconds,activeSeconds+dt);field.dataset.activeMs=String(Math.round(activeSeconds*1000));
+      const left=Math.ceil(challengeSeconds-activeSeconds);$('#challenge-time')!.textContent=String(left);
+      ($<HTMLProgressElement>('#challenge-clock')!).value=challengeSeconds-activeSeconds;
+      field.classList.toggle('last-seconds',left<=10);
+      if(activeSeconds>=challengeSeconds){finish(true);return;}
+      fallSpeed=.34+.14*(activeSeconds/challengeSeconds);
+      scorePulse=Math.max(0,scorePulse-dt*3);
+      scorePops.forEach(pop=>pop.life-=dt*1.2);for(let i=scorePops.length-1;i>=0;i--)if(scorePops[i].life<=0)scorePops.splice(i,1);
+    }
     bounce = Math.max(0, bounce - dt * 3.5);
     if (celebrate > 0) {
       celebrate -= dt;
-      if (celebrate <= 0) { if (plates.length >= plateCount) { finish(); return; } plates.push([]); renderPlates(); }
+      if (celebrate <= 0) { if (!challenge&&plates.length >= plateCount) { finish(); return; } plates.push([]); renderPlates(); }
     } else if (!items.length) {
       gap -= dt;
-      if (gap <= 0) { if (spawned >= maxPairs || !foods.length) { finish(); return; } spawn(); }
+      if (gap <= 0) { if (!foods.length||(!challenge&&spawned>=pairLimit)) { finish(); return; } if(spawned<pairLimit)spawn(); }
     }
     const falling = items.filter(item => !item.leaving);
     for (const item of items) {
@@ -176,6 +265,15 @@ function tick(now: number) {
       evidence[picked.id].caught++;
       items = items.filter(item => item !== picked);
       const plate = plates[plates.length - 1]; plate.push(picked.id); renderPlates();
+      if(challenge){
+        const atMs=Math.round(activeSeconds*1000),reactionMs=Math.max(0,atMs-spawnAtMs);
+        catches.push({atMs,reactionMs});score=challengeScore(catches);scorePulse=1;
+        const plateBonus=plate.length===plateSize;
+        scorePops.push({x:picked.x,y:mode==='camera'?picked.y:.78,points:catchPoints(reactionMs)+(plateBonus?150:0),life:1,plate:plateBonus});
+        $('#live-score')!.textContent=score.toLocaleString('ja-JP');
+        $('#best-target')!.textContent=score>(options.best??0)?'完走で自己ベスト！':`あと${((options.best??0)-score+1).toLocaleString('ja-JP')}点で更新`;
+        $('.challenge-hud')!.classList.remove('score-bump');void $('.challenge-hud')!.offsetWidth;$('.challenge-hud')!.classList.add('score-bump');
+      }
       pops.push({ x: picked.x, y: mode === 'camera' ? picked.y : .8, emoji: emojiOf(picked.id), life: 1 }); bounce = 1;
       // The same feedback for every food, so the effect never tells the child which one to want.
       if (plate.length >= plateSize) { celebrate = celebration; [523, 659, 784, 1047].forEach((freq, i) => tone(freq, i * .11, .3)); }
@@ -190,6 +288,7 @@ function tick(now: number) {
   draw(); drawDebug(now); animation = requestAnimationFrame(tick);
 }
 function spawn() {
+  spawnAtMs=Math.round(activeSeconds*1000);
   const ids = schedule.length ? schedule[spawned] : [foods[0]];
   const positions = mode === 'camera' ? avatarLayout(field.clientWidth, field.clientHeight).lanes : lanes;
   const xs = ids.length === 2 ? positions : [positions[spawned % 2]];
@@ -200,8 +299,8 @@ function platesHtml(list: IngredientId[][], current = -1) {
   return list.map((plate, index) => `<span class="plate${index === current ? ' current' : ''}${plate.length >= plateSize ? ' full' : ''}">${Array.from({ length: plateSize }, (_, slot) => `<i>${plate[slot] ? emojiOf(plate[slot]) : ''}</i>`).join('')}</span>`).join('');
 }
 function renderPlates() {
-  const holder = $('#plates'); if (holder) holder.innerHTML = platesHtml(Array.from({ length: plateCount }, (_, index) => plates[index] ?? []), plates.length - 1);
-  const counter = $('#counter b'); if (counter) counter.textContent = String(Math.min(plates.length, plateCount));
+  const holder = $('#plates'); if (holder) holder.innerHTML = challenge?platesHtml(plates.slice(-3),Math.min(plates.length,3)-1):platesHtml(Array.from({ length: plateCount }, (_, index) => plates[index] ?? []), plates.length - 1);
+  const counter = $('#counter b'); if (counter&&!challenge) counter.textContent = String(Math.min(plates.length, plateCount));
 }
 function startAudio() { try { audio ??= new AudioContext(); void audio.resume(); } catch { audio = null; } }
 function tone(freq: number, delay: number, length = .16) {
@@ -220,7 +319,7 @@ function draw() {
   if (avatar) {
     avatar.background(ctx, w, h);
     drawGestureButtons(ctx, layout);
-    avatar.draw(ctx, layout, displayedArms.map((arm, i) => placeArm(arm, i, layout)), cameraState === 'ready' && !displayedArms.some(arm => arm.valid), performance.now());
+    avatar.draw(ctx, layout, displayedArms.map((arm, i) => placeArm(arm, i, layout)), cameraState === 'ready' && !trackingStability.sample(performance.now()).visible, performance.now());
   }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const emojiFont = (size: number) => `${size}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
@@ -228,6 +327,13 @@ function draw() {
     ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, item.life)); ctx.translate(item.x * w, item.y * h); ctx.rotate(item.rotation);
     ctx.fillStyle = '#fff9'; ctx.beginPath(); ctx.arc(0, 0, mode === 'camera' ? layout.foodRadius : Math.min(w * .05, 44), 0, Math.PI*2); ctx.fill();
     ctx.font = emojiFont(mode === 'camera' ? layout.foodRadius * 1.5 : Math.min(w * .078, 66)); ctx.fillText(emojiOf(item.id), 0, 0); ctx.restore();
+    if(options.catalog){
+      ctx.save(); ctx.globalAlpha=Math.max(0,Math.min(1,item.life)); ctx.font='bold 12px sans-serif';
+      const name=ingredients.find(food=>food.id===item.id)!.name, width=ctx.measureText(name).width+16;
+      const x=item.x*w, y=item.y*h+(mode==='camera'?layout.foodRadius:Math.min(w*.05,44))+11;
+      ctx.fillStyle='#fffdf3ee';ctx.beginPath();ctx.roundRect(x-width/2,y-10,width,21,9);ctx.fill();
+      ctx.fillStyle='#46603f';ctx.fillText(name,x,y);ctx.restore();
+    }
   }
   if (mode === 'demo') {
   // The basket opening crosses the fixed catch line at y=.82.
@@ -247,6 +353,21 @@ function draw() {
     ctx.font = emojiFont(size * (1 + grow * .3)); ctx.fillText(pop.emoji, pop.x * w, (pop.y - grow * .12) * h);
   }
   ctx.globalAlpha = 1;
+  if(challenge){
+    for(const pop of scorePops){
+      ctx.save();ctx.globalAlpha=Math.max(0,pop.life);ctx.translate(pop.x*w,(pop.y-(1-pop.life)*.14)*h);
+      ctx.fillStyle=pop.plate?'#a04712':'#245a3e';ctx.strokeStyle='#fffdf5';ctx.lineWidth=6;
+      ctx.font=`900 ${Math.min(w*.065,42)*(1+scorePulse*.1)}px ui-rounded,sans-serif`;
+      ctx.strokeText(`+${pop.points}`,0,0);ctx.fillText(`+${pop.points}`,0,0);
+      if(pop.plate){ctx.font=`bold ${Math.min(w*.03,20)}px sans-serif`;ctx.fillText('おさら完成！',0,28);}
+      ctx.restore();
+    }
+    if(countdown>0&&phase==='playing'){
+      ctx.save();ctx.fillStyle='#fffdf5dc';ctx.fillRect(0,0,w,h);ctx.fillStyle='#285e42';
+      ctx.font=`900 ${Math.min(w*.2,120)}px ui-rounded,sans-serif`;ctx.fillText(String(Math.ceil(countdown)),w/2,h*.43);
+      ctx.font='bold 20px sans-serif';ctx.fillText('好きなほうを、すばやくキャッチ',w/2,h*.57);ctx.restore();
+    }
+  }
   if (celebrate > 0) {
     const shown = Math.min(1, (celebration - celebrate) * 5, celebrate * 4), scale = .8 + shown * .2, size = Math.min(w * .09, 76);
     ctx.save(); ctx.globalAlpha = shown; ctx.translate(w / 2, h * .4); ctx.scale(scale, scale);
@@ -283,10 +404,11 @@ function draw() {
   }
   function pointer(event:PointerEvent){if(mode!=='demo'||!(event.target as HTMLElement).closest('#field')||(event.target as HTMLElement).closest('button'))return;const rect=field.getBoundingClientRect();targetX=Math.max(.09,Math.min(.91,(event.clientX-rect.left)/rect.width));}
   function key(event:KeyboardEvent){if(mode!=='demo'||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();targetX=Math.max(.09,Math.min(.91,targetX+(event.key==='ArrowLeft'?-.07:.07)));}
-  function resize(){ positionGestureButtons(); gestureHold.reset(phase === 'paused'); gestureProgress=0; previousHands = []; wasTracked = false; if(mode === 'camera'){const xs=avatarLayout(field.clientWidth,field.clientHeight).lanes;for(const item of items)item.x=xs[item.x<.5?0:1];}}
+  function resize(){ updateOrientation();if(!orientationBlocked()&&cameraState==='idle'&&options.autoPrepare)void prepareCamera();positionGestureButtons(); gestureHold.reset(phase === 'paused'); gestureProgress=0; previousHands = []; wasTracked = false; if(mode === 'camera'){const xs=avatarLayout(field.clientWidth,field.clientHeight).lanes;for(const item of items)item.x=xs[item.x<.5?0:1];}}
   window.addEventListener('resize',resize);
-  function visibility(){if(document.hidden)pause('画面を離れたので、時間を止めたよ。');}
+  function visibility(){if(document.hidden){trackingStability.reset();pause('画面を離れたので、時間を止めたよ。');}}
   container.addEventListener('click',click);container.addEventListener('pointermove',pointer);container.addEventListener('pointerdown',pointer);window.addEventListener('keydown',key);document.addEventListener('visibilitychange',visibility);
   renderPlates();animation=requestAnimationFrame(tick);
-  return {pause,syncStatus(){if(phase==='playing'||phase==='paused')void options.onStatus(phase).catch(()=>{});},destroy(){disposed=true;window.removeEventListener('resize',resize);void audio?.close().catch(()=>{});camera.stop();video.srcObject=null;avatar?.destroy();cancelAnimationFrame(animation);container.removeEventListener('click',click);container.removeEventListener('pointermove',pointer);container.removeEventListener('pointerdown',pointer);window.removeEventListener('keydown',key);document.removeEventListener('visibilitychange',visibility);}};
+  if(options.autoPrepare && mode === 'camera') void prepareCamera();
+  return {pause,syncStatus(){if(phase==='playing'||phase==='paused')void options.onStatus(phase).catch(()=>{});},destroy(){disposed=true;window.removeEventListener('resize',resize);void audio?.close().catch(()=>{});camera.stop();video.srcObject=null;if(preview)preview.srcObject=null;avatar?.destroy();cancelAnimationFrame(animation);container.removeEventListener('click',click);container.removeEventListener('pointermove',pointer);container.removeEventListener('pointerdown',pointer);window.removeEventListener('keydown',key);document.removeEventListener('visibilitychange',visibility);}};
 }
