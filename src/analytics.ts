@@ -53,6 +53,11 @@ export function initAnalytics() {
     gtag('consent', 'default', {
       analytics_storage: 'granted', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
     });
+    // Apply before `js`: the managed Google tag can initialize a destination before our config.
+    gtag('set', {
+      send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false,
+      page_location: analyticsOrigin + '/', page_referrer: '', page_title: `${screens.intro}｜親子のごはんづくり`,
+    });
     gtag('js', new Date());
     gtag('config', measurementId, {
       send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false,

@@ -86,6 +86,8 @@ try{
  for(const args of data.filter(args=>args[0]==='event'))assert.deepEqual(Object.keys(args[2]).sort(),['page_location','page_title','screen_name','send_to']);
  assert.deepEqual(data.find(args=>args[0]==='consent')[2],{analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});
  const config=data.find(args=>args[0]==='config')[2];assert.equal(config.send_page_view,false);assert.equal(config.allow_google_signals,false);assert.equal(config.allow_ad_personalization_signals,false);
+ const defaults=data.find(args=>args[0]==='set')[1];assert.equal(defaults.send_page_view,false);assert.equal(defaults.page_location,origin+'/');
+ assert.ok(data.findIndex(args=>args[0]==='set')<data.findIndex(args=>args[0]==='js'),'defaults must precede managed destination initialization');
  check('real game start and acknowledged save count once; failed saves do not count');
  check('survey text, answers, IDs, age and URL parameters are absent from the GA queue');
  await page.screenshot({path:`${folder}/saved.png`});
