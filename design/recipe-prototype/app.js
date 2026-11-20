@@ -111,6 +111,7 @@ function checkpoint() {
 }
 function acceptSaved(ack, key=state.key) {
   if (key !== state.key || ack.id !== state.sessionId || !ack.complete || !ack.receipt || !state.finalPacket) return;
+  runtime.analytics?.completeSurvey();
   state.receipt = ack.receipt; sendError = ''; sending = false; save(); go('done');
 }
 async function submitFinal() {
@@ -187,7 +188,7 @@ function introView() {
     ['レシピの推薦を見る', '選んだ食材を使った料理と、子どもがお手伝いできる工程を確認します。'],
     ['アンケートに答える', 'ゲームの楽しさや、提案された分担について伺います。'],
   ];
-  return `<h1 class="intro-title">食材選びから始める、<br>共働き家庭の<br>親子のごはんづくり</h1><div class="intro-study"><p>芝浦工業大学 ビジネスコンテストプロジェクトでは、アンケート調査の結果をもとに、親子のごはんづくりを支えるアプリを考えました。</p><p>使いやすさや、提案された料理の分担への納得感を確かめるため、体験とアンケートへのご協力をお願いします。</p><p>主な対象は、8歳以下のお子さんがいる共働き家庭ですが、幅広いご意見を集めていますので、対象に当てはまらない方も、ぜひご参加ください。</p></div><h2 class="experience-flow-title">体験の流れ</h2><ol class="experience-steps">${steps.map(([title,copy],i)=>`<li><div class="experience-step-image step-image-${i+1}" role="img" aria-label="${title}のイメージ"></div><div class="experience-step-copy"><span>${i+1}</span><div><h2>${title}</h2><p>${copy}</p></div></div></li>`).join('')}</ol><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form>${contactView()}`;
+  return `<h1 class="intro-title">食材選びから始める、<br>共働き家庭の<br>親子のごはんづくり</h1><div class="intro-study"><p>芝浦工業大学 ビジネスコンテストプロジェクトでは、アンケート調査の結果をもとに、親子のごはんづくりを支えるアプリを考えました。</p><p>使いやすさや、提案された料理の分担への納得感を確かめるため、体験とアンケートへのご協力をお願いします。</p><p>主な対象は、8歳以下のお子さんがいる共働き家庭ですが、幅広いご意見を集めていますので、対象に当てはまらない方も、ぜひご参加ください。</p></div><h2 class="experience-flow-title">体験の流れ（3分程度）</h2><ol class="experience-steps">${steps.map(([title,copy],i)=>`<li><div class="experience-step-image step-image-${i+1}" role="img" aria-label="${title}のイメージ"></div><div class="experience-step-copy"><span>${i+1}</span><div><h2>${title}</h2><p>${copy}</p></div></div></li>`).join('')}</ol><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><p class="privacy">利用状況の把握にGoogleアナリティクスを使用します。アンケートの回答内容は送信しません。</p>${contactView()}`;
 }
 
 function cameraView() {
@@ -278,6 +279,7 @@ function render() {
   if (stage !== 'game') gameEntryRequested=false;
   const generation=++gameMountGeneration;
   state.stage = stage;
+  runtime?.analytics?.screen(stage, state.market.step);
   runtime?.setDiagnosticContext?.({experienceId:state.sessionId,deviceId,screen:stage,demo:demoMode});
   if (routeId() !== stage) history.replaceState(null, '', `#${stage}`);
   actor.textContent = stages.find(item => item.id === stage).actor;
