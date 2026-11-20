@@ -95,5 +95,5 @@ try{
  check('blocked analytics does not prevent entering the experience');
  assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);
  await writeFile(`${folder}/report.json`,JSON.stringify({checks,events:data.filter(args=>args[0]==='event'),actualGoogle:false,actualProduction:false,unexpected,errors},null,2));
- await context.close();
+ await context.unrouteAll({behavior:'wait'});await context.close();
 }finally{await browser.close();app.server.closeAllConnections();await new Promise(resolve=>app.server.close(resolve));}

@@ -103,5 +103,6 @@ try{
  assert.deepEqual(unexpected,[]);check('an unreachable diagnostics server does not block the game or fallback');
  await writeFile(`${folder}/synthetic-envelope.json`,JSON.stringify(envelopes[0],null,2));
  await writeFile(`${folder}/report.json`,JSON.stringify({checks,eventCodes:events.map(event=>event.tags.diagnostic_code),realDevices:false,realCamera:false,actualSentry:false,unexpected},null,2));
- await context.close();
+ // Background checkpoint requests can still be fulfilling after the last assertion.
+ await context.unrouteAll({behavior:'wait'});await context.close();
 }finally{await browser.close();app.server.closeAllConnections();await new Promise(resolve=>app.server.close(resolve));}
