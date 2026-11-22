@@ -246,6 +246,31 @@ main {
   margin-top:14px;
   line-height:1.95
 }
+.resume-dialog {
+  width:min(580px,calc(100% - 32px));
+  max-height:calc(100svh - 32px);
+  margin:auto;
+  padding:32px 24px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  color:inherit;
+  background:var(--cream);
+  box-shadow:0 20px 80px #18251c33;
+}
+.resume-dialog::backdrop {
+  background:#1d2d2359;
+}
+.resume-dialog h1 {
+  font-size:clamp(23px,4vw,32px);
+}
+.resume-dialog .lead {
+  font-size:16px;
+}
+.resume-actions {
+  display:grid;
+  gap:14px;
+  margin-top:36px;
+}
 .primary,.secondary {
   width:100%;
   min-height:54px;

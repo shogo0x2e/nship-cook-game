@@ -5,6 +5,7 @@ import { questionnaireVersion, scale, questions, playFrequencyQuestion, playFreq
 import { freshParticipant, restoreParticipant, participantComplete, participantFields, isYoung } from './participant.js';
 import { offer, features, freshMarket, validBudget, validInterests, marketComplete, marketView } from './market.js';
 import { newExperienceId } from './experience-id.js';
+import { readResume, writeResume, clearResume } from './resume.js';
 
 const stages = [
   { id: 'intro', number: '01', title: '体験の説明', actor: '保護者の方へ', note: '何を体験するか、親に説明する。' },
@@ -37,7 +38,8 @@ function browserId() {
 const deviceId=browserId();
 const freshState = () => ({ started: false, returnPortrait: false, caught: [], evidence: {}, gameFinished: false, gameInput: 'demo', key: newKey(), sequence: 0, receipt: null, finalPacket: null, score: 0, recipeId: null, showAll: false, stage: 'intro', sessionId: newExperienceId(), createdAt: new Date().toISOString(), participant: freshParticipant(), market: freshMarket(), surveys: { child: freshSurvey(), parent: freshSurvey() } });
 let state = freshState();
-// Each document visit is a new experience. Only the browser ID and delivery outbox persist.
+let pendingResume = production ? readResume(demoMode, freshState) : null;
+// Retired snapshots did not preserve the current questionnaire and delivery state.
 for (const key of ['cookgame-experience-v1','cookgame-experience-v1-demo'])try { localStorage.removeItem(key); } catch { /* Optional cleanup of the previous resume state. */ }
 let nativeGame = null;
 let gameMountGeneration=0;
@@ -60,6 +62,7 @@ const chips = (ids, editable = false) => `<div class="food-chips">${foods.filter
 let warnsOnLeave=false;
 const warnOnLeave=event=>{event.preventDefault();event.returnValue='';};
 function save() {
+  if (production && !pendingResume) writeResume(state, demoMode);
   const warn=state.started&&!state.receipt;
   if(warn===warnsOnLeave)return;
   warnsOnLeave=warn;
@@ -104,7 +107,7 @@ function packet(complete = false) {
   }};
 }
 function checkpoint() {
-  if (!production || state.finalPacket || !participantComplete(state.participant)) return;
+  if (!production || pendingResume || state.finalPacket || !participantComplete(state.participant)) return;
   clearTimeout(draftTimer);
   const draft = packet(); save();
   void runtime.saveExperience(draft).catch(() => {});
@@ -122,7 +125,7 @@ async function submitFinal() {
   catch (error) { sending = false; sendError = error.message || '回答を送信できませんでした。'; render(); }
 }
 function sendingView() {
-  return `${heading('回答の送信', sending ? '回答を送信しています。' : '回答をもう一度<br>送信してください。')}<p class="lead">保存が完了すると、受付IDが表示されます。</p><p class="survey-error" role="alert">${esc(sendError)}</p>${sending ? '<p role="status">送信中…</p>' : button('回答を再送信する', 'retry-send')}<p class="plain-note">通信できる状態で、この画面から再送信してください。画面を閉じると、この体験には戻れません。</p>`;
+  return `${heading('回答の送信', sending ? '回答を送信しています。' : '回答をもう一度<br>送信してください。')}<p class="lead">保存が完了すると、受付IDが表示されます。</p><p class="survey-error" role="alert">${esc(sendError)}</p>${sending ? '<p role="status">送信中…</p>' : button('回答を再送信する', 'retry-send')}<p class="plain-note">通信できる状態で、この画面から再送信してください。同じブラウザで開き直すと、続きから再開できます。</p>`;
 }
 function exportResponses() {
   const records = readRecords();
@@ -189,6 +192,10 @@ function introView() {
     ['アンケートに答える', 'ゲームの楽しさや、提案された分担について伺います。'],
   ];
   return `<h1 class="intro-title">食材選びから始める、<br>共働き家庭の<br>親子のごはんづくり</h1><div class="intro-study"><p>芝浦工業大学 ビジネスコンテストプロジェクトでは、アンケート調査の結果をもとに、親子のごはんづくりを支えるアプリを考えました。</p><p>使いやすさや、提案された料理の分担への納得感を確かめるため、体験とアンケートへのご協力をお願いします。</p><p>主な対象は、8歳以下のお子さんがいる共働き家庭ですが、幅広いご意見を集めていますので、対象に当てはまらない方も、ぜひご参加ください。</p></div><h2 class="experience-flow-title">体験の流れ（3分程度）</h2><ol class="experience-steps">${steps.map(([title,copy],i)=>`<li><div class="experience-step-image step-image-${i+1}" role="img" aria-label="${title}のイメージ"></div><div class="experience-step-copy"><span>${i+1}</span><div><h2>${title}</h2><p>${copy}</p></div></div></li>`).join('')}</ol><form id="participant-form">${participantFields(state.participant)}<button type="submit" class="primary">子どもに渡して体験を開始<span aria-hidden="true">→</span></button></form><p class="privacy">利用状況の把握にGoogleアナリティクスを使用します。アンケートの回答内容は送信しません。</p>${contactView()}`;
+}
+
+function resumeView() {
+  return `<dialog class="resume-dialog" aria-labelledby="resume-title" aria-describedby="resume-description"><section class="resume-view"><h1 id="resume-title">途中まで保存された<br>回答があります。</h1><p id="resume-description" class="lead">続きから再開しますか？</p><div class="resume-actions">${button('続きから再開する', 'resume-experience')}${secondary('最初から始める', 'reset')}</div></section></dialog>`;
 }
 
 function cameraView() {
@@ -261,7 +268,7 @@ function doneView() {
 }
 
 function render() {
-  let stage = production && state.finalPacket ? (state.receipt ? 'done' : 'parent-survey') : routeId() || (production ? 'intro' : state.stage);
+  let stage = pendingResume ? 'intro' : production && state.finalPacket ? (state.receipt ? 'done' : 'parent-survey') : routeId() || (production ? 'intro' : state.stage);
   stage = ({ help: 'recipe', 'child-recipe': 'child-task' })[stage] ?? stage;
   if (!stages.some(item => item.id === stage)) stage = 'intro';
   if(stage==='parent-survey'){
@@ -290,7 +297,7 @@ function render() {
     'child-task': () => childTaskView(recipe),
     'child-survey': () => surveyView(false), 'parent-survey': () => surveyView(true), done: doneView,
   };
-  app.innerHTML = production && state.finalPacket && !state.receipt ? sendingView() : views[stage]();
+  app.innerHTML = pendingResume ? introView() + resumeView() : production && state.finalPacket && !state.receipt ? sendingView() : views[stage]();
   if (stage === 'game' && (production || state.gameInput==='camera')) {
     const onFinish=async evidence=>{
       if(generation!==gameMountGeneration)return;
@@ -313,6 +320,12 @@ function render() {
   document.querySelector('#flow-toggle').setAttribute('aria-expanded', 'false');
   window.scrollTo(0, 0);
   app.focus({ preventScroll: true });
+  if (pendingResume) {
+    const dialog = app.querySelector('.resume-dialog');
+    dialog.addEventListener('cancel', event => event.preventDefault());
+    dialog.showModal();
+    dialog.querySelector('button').focus();
+  }
   if (production && stage !== 'game') checkpoint();
 }
 
@@ -321,11 +334,20 @@ document.addEventListener('click', event => {
   if (!target || target.disabled) return;
   if (production && state.finalPacket && !['reset', 'retry-send'].includes(target.dataset.action)) return;
   const action = target.dataset.action;
+  if (action === 'resume-experience' && pendingResume) {
+    state = pendingResume; pendingResume = null;
+    // Re-enter camera preparation explicitly instead of reopening a stream on page load.
+    const stage = state.stage === 'game' ? 'camera' : state.stage;
+    state.stage = stage; save(); go(stage, stage === 'parent-survey' ? state.market.step : undefined);
+    if (state.finalPacket) void submitFinal();
+    else void runtime.flushOutbox();
+    return;
+  }
   if (action === 'retry-send') void submitFinal();
   if (action === 'go') go(target.dataset.stage);
   if (action === 'review') reviewJump(target.dataset.stage);
   if (action === 'sample') { const participant = state.participant; state = freshState(); state.participant = participant; sample(); go('recipes'); }
-  if (action === 'reset') { nativeGame?.destroy();nativeGame=null; state = freshState(); storageNotice = ''; go('intro'); }
+  if (action === 'reset') { nativeGame?.destroy();nativeGame=null; pendingResume=null;if(production)clearResume(demoMode);state = freshState(); storageNotice = ''; go('intro');if(production)void runtime.flushOutbox(); }
   if (action === 'start-camera-game') {gameEntryRequested=true;state.caught=[];state.evidence={};state.gameFinished=false;state.score=0;state.recipeId=null;state.gameInput='camera';go('game');}
   if (action === 'demo-game') { gameEntryRequested=true;state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = 'demo'; go('game'); }
   if (action === 'skip-game') { state.gameFinished = true; state.returnPortrait=phoneViewport(); save(); go(state.returnPortrait&&innerWidth>innerHeight?'result':'handoff'); }
@@ -414,12 +436,12 @@ document.querySelector('#flow-toggle').addEventListener('click', event => {
 });
 window.addEventListener('hashchange', render);
 window.addEventListener('resize',()=>{if(state.stage==='result'&&state.returnPortrait&&innerHeight>=innerWidth)render();});
-window.addEventListener('pagehide', () => { clearTimeout(draftTimer);checkpoint();gameMountGeneration++;nativeGame?.destroy(); });
-window.addEventListener('pageshow', event=>{if(event.persisted){state=freshState();gameEntryRequested=false;history.replaceState(null,'','#intro');render();}});
+window.addEventListener('pagehide', () => { clearTimeout(draftTimer);save();checkpoint();gameMountGeneration++;nativeGame?.destroy(); });
+window.addEventListener('pageshow', event=>{if(event.persisted){state=freshState();pendingResume=production?readResume(demoMode,freshState):null;gameEntryRequested=false;history.replaceState(null,'','#intro');render();}});
 if (production) {
   runtime.onSaved(acceptSaved);
-  runtime.onIdChanged(({key,id})=>{if(state.key!==key)return;state.sessionId=id;if(state.finalPacket)state.finalPacket={...state.finalPacket,id};app.dataset.experienceId=id;});
+  runtime.onIdChanged(({key,id})=>{if(state.key!==key)return;state.sessionId=id;if(state.finalPacket)state.finalPacket={...state.finalPacket,id};save();app.dataset.experienceId=id;});
   history.replaceState(null, '', '#intro');
 }
 render();
-if (production) void runtime.flushOutbox();
+if (production && !pendingResume) void runtime.flushOutbox();
