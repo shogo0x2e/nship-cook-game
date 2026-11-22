@@ -15,7 +15,7 @@ import { questionnaireVersion, recipeVersion, conceptVersion } from '../src/expe
 import type { Role } from '../src/shared.ts';
 const MAX_BODY=16*1024;
 const MIME:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.wasm':'application/wasm','.task':'application/octet-stream','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2'};
-export type ServerOptions={host?:string;port?:number;dist?:string;tlsCert?:string;tlsKey?:string;dataPath?:string;allowedOrigins?:string[];surveyExportToken?:string};
+export type ServerOptions={host?:string;port?:number;dist?:string;tlsCert?:string;tlsKey?:string;dataPath?:string;allowedOrigins?:string[];surveyExportToken?:string;legacyRecoveryIds?:string[]};
 function json(res:ServerResponse,status:number,data:unknown){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));}
 async function body(req:IncomingMessage,maxBytes=MAX_BODY):Promise<unknown>{
   if(req.headers['content-type']?.split(';')[0].trim()!=='application/json')throw new SessionError(415,'Use application/json');
@@ -36,7 +36,7 @@ class Limiter {
 export async function createSessionServer(options:ServerOptions={}){
   const host=options.host??'127.0.0.1';const port=options.port??8787;const dist=resolve(options.dist??fileURLToPath(new URL('../dist',import.meta.url)));const accounts=new AccountStore(options.dataPath??':memory:');const store=new FamilyStore(accounts);const limiter=new Limiter();
   if(options.surveyExportToken!==undefined&&!/^[a-f0-9]{64}$/.test(options.surveyExportToken))throw new Error('Invalid survey export key');
-  const experiences=new ExperienceStore(accounts.db);
+  const experiences=new ExperienceStore(accounts.db,options.legacyRecoveryIds);
   if(Boolean(options.tlsCert)!==Boolean(options.tlsKey))throw new Error('Set both TLS_CERT and TLS_KEY');
   const secure=Boolean(options.tlsCert);const scheme=secure?'https':'http';
   const permittedHosts=new Set(['localhost','127.0.0.1','[::1]']);
@@ -76,6 +76,16 @@ export async function createSessionServer(options:ServerOptions={}){
           if(req.method!=='GET')throw new SessionError(405,'Method not allowed');
           if(requested.search)throw new SessionError(400,'Query parameters not supported');
           json(res,200,surveySnapshot(accounts.db));return;
+        }
+        if(path==='/api/experience-recovery/lookup'||path==='/api/experience-recovery/claim'){
+          limiter.check('experience-recovery',identity,30,60_000);
+          if(req.method!=='POST')throw new SessionError(405,'Method not allowed');
+          if(requested.search)throw new SessionError(400,'Query parameters not supported');
+          const input=strictObject(await body(req),path.endsWith('/lookup')?['deviceId']:['deviceId','id']);
+          if(path.endsWith('/lookup')){json(res,200,{candidate:experiences.findLegacy(input.deviceId)});return;}
+          if(typeof input.id!=='string')throw new SessionError(400,'Invalid experience ID');
+          const key=req.headers.authorization?.match(/^Bearer ([0-9a-f]{64})$/)?.[1];
+          json(res,200,experiences.claimLegacy(input.id,input.deviceId,key));return;
         }
         const experiencePath=/^\/api\/experiences\/([23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}|[0-9a-f-]{36})$/i.exec(path);
         if(experiencePath){
@@ -130,7 +140,12 @@ if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.u
   const allowedOrigins=(process.env.ALLOWED_ORIGINS??'').split(',').filter(Boolean);
   const exportKeyPath=resolve(process.env.DATA_DIR??'data','survey-export-token');
   const surveyExportToken=await readFile(exportKeyPath,'utf8').then(value=>value.trim()).catch(error=>{if(error.code==='ENOENT')return undefined;throw error;});
-  const service=await createSessionServer({host,port,surveyExportToken,tlsCert:process.env.TLS_CERT,tlsKey:process.env.TLS_KEY,allowedOrigins,dataPath:resolve(process.env.DATA_DIR??'data','cookgame.sqlite')});
+  const legacyRecoveryIds=await readFile(resolve(process.env.DATA_DIR??'data','legacy-recovery.json'),'utf8').then(text=>{
+    const config=strictObject(JSON.parse(text),['experienceIds']);
+    if(!Array.isArray(config.experienceIds)||config.experienceIds.some(id=>typeof id!=='string'))throw new Error('Invalid legacy recovery allowlist');
+    return config.experienceIds as string[];
+  }).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
+  const service=await createSessionServer({host,port,surveyExportToken,legacyRecoveryIds,tlsCert:process.env.TLS_CERT,tlsKey:process.env.TLS_KEY,allowedOrigins,dataPath:resolve(process.env.DATA_DIR??'data','cookgame.sqlite')});
   await service.listen();console.log(`Local cooking session server: ${process.env.TLS_CERT?'https':'http'}://${host}:${port}`);
   // No request, address, body, pairing-code, or token logs.
 }

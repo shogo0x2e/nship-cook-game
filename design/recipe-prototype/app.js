@@ -6,6 +6,7 @@ import { freshParticipant, restoreParticipant, participantComplete, participantF
 import { offer, features, freshMarket, validBudget, validInterests, marketComplete, marketView } from './market.js';
 import { newExperienceId } from './experience-id.js';
 import { readResume, writeResume, clearResume } from './resume.js';
+import { legacyRecoveryDismissed, readLegacyClaim, writeLegacyClaim, clearLegacyClaim, dismissLegacyRecovery, restoreLegacyExperience } from './legacy-recovery.js';
 
 const stages = [
   { id: 'intro', number: '01', title: '体験の説明', actor: '保護者の方へ', note: '何を体験するか、親に説明する。' },
@@ -30,15 +31,25 @@ const demoMode = new URLSearchParams(location.search).get('demo') === '1';
 const recordsKey = 'cookgame-recipe-survey-records-v1' + (demoMode ? '-demo' : '');
 if (demoMode) document.querySelector('.prototype-bar>span').textContent += '（デモ回答）';
 const newKey = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), n => n.toString(16).padStart(2, '0')).join('');
+let knownBrowser = false;
 function browserId() {
   const name='cookgame-browser-id-v1';
-  try { const saved=localStorage.getItem(name); if(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(saved || ''))return saved; } catch { /* Browsing remains possible without storage. */ }
+  try { const saved=localStorage.getItem(name); if(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(saved || '')){knownBrowser=true;return saved;} } catch { /* Browsing remains possible without storage. */ }
   const id=crypto.randomUUID();try { localStorage.setItem(name,id); } catch { /* This visit still has an identifier. */ }return id;
 }
 const deviceId=browserId();
 const freshState = () => ({ started: false, returnPortrait: false, caught: [], evidence: {}, gameFinished: false, gameInput: 'demo', key: newKey(), sequence: 0, receipt: null, finalPacket: null, score: 0, recipeId: null, showAll: false, stage: 'intro', sessionId: newExperienceId(), createdAt: new Date().toISOString(), participant: freshParticipant(), market: freshMarket(), surveys: { child: freshSurvey(), parent: freshSurvey() } });
 let state = freshState();
-let pendingResume = production ? readResume(demoMode, freshState) : null;
+const initialResume = () => {
+  if(!production)return null;
+  const saved=readResume(demoMode,freshState);if(saved)return saved;
+  const claim=!demoMode&&readLegacyClaim(deviceId);
+  return claim?{legacyRecovery:true,sessionId:claim.id,key:claim.key}:null;
+};
+let pendingResume = initialResume();
+let checkingLegacy = false;
+let recoveringLegacy = false;
+let recoveryError = '';
 // Retired snapshots did not preserve the current questionnaire and delivery state.
 for (const key of ['cookgame-experience-v1','cookgame-experience-v1-demo'])try { localStorage.removeItem(key); } catch { /* Optional cleanup of the previous resume state. */ }
 let nativeGame = null;
@@ -62,7 +73,7 @@ const chips = (ids, editable = false) => `<div class="food-chips">${foods.filter
 let warnsOnLeave=false;
 const warnOnLeave=event=>{event.preventDefault();event.returnValue='';};
 function save() {
-  if (production && !pendingResume) writeResume(state, demoMode);
+  if (production && !pendingResume && !checkingLegacy && writeResume(state, demoMode) && state.started && !demoMode) clearLegacyClaim(deviceId);
   const warn=state.started&&!state.receipt;
   if(warn===warnsOnLeave)return;
   warnsOnLeave=warn;
@@ -107,7 +118,7 @@ function packet(complete = false) {
   }};
 }
 function checkpoint() {
-  if (!production || pendingResume || state.finalPacket || !participantComplete(state.participant)) return;
+  if (!production || pendingResume || checkingLegacy || state.finalPacket || !participantComplete(state.participant)) return;
   clearTimeout(draftTimer);
   const draft = packet(); save();
   void runtime.saveExperience(draft).catch(() => {});
@@ -195,7 +206,35 @@ function introView() {
 }
 
 function resumeView() {
-  return `<dialog class="resume-dialog" aria-labelledby="resume-title" aria-describedby="resume-description"><section class="resume-view"><h1 id="resume-title">途中まで保存された<br>回答があります。</h1><p id="resume-description" class="lead">続きから再開しますか？</p><div class="resume-actions">${button('続きから再開する', 'resume-experience')}${secondary('最初から始める', 'reset')}</div></section></dialog>`;
+  return `<dialog class="resume-dialog" aria-labelledby="resume-title" aria-describedby="resume-description" aria-busy="${recoveringLegacy}"><section class="resume-view"><h1 id="resume-title">途中まで保存された<br>回答があります。</h1><p id="resume-description" class="lead">続きから再開しますか？</p>${recoveryError?`<p class="survey-error" role="alert">${esc(recoveryError)}</p>`:''}<div class="resume-actions">${button(recoveringLegacy?'再開しています…':'続きから再開する', 'resume-experience',recoveringLegacy?'disabled':'')}${secondary('最初から始める', 'reset',recoveringLegacy?'disabled':'')}</div></section></dialog>`;
+}
+
+async function checkLegacyRecovery() {
+  if(!production||demoMode||!knownBrowser||pendingResume||state.started||legacyRecoveryDismissed(deviceId)){if(production&&!pendingResume)void runtime.flushOutbox();return;}
+  checkingLegacy=true;render();
+  try {
+    const candidate=await runtime.findLegacyExperience(deviceId);
+    if(candidate&&!state.started&&!pendingResume)pendingResume={legacyRecovery:true,sessionId:candidate.id,key:newKey()};
+  } catch { /* A blocked lookup must not prevent starting a new experience. */ }
+  finally {checkingLegacy=false;render();if(!pendingResume)void runtime.flushOutbox();}
+}
+function resumeExperience() {
+  state=pendingResume;pendingResume=null;recoveryError='';
+  const stage=state.stage==='game'?'camera':state.stage;
+  state.stage=stage;save();go(stage,stage==='parent-survey'?state.market.step:undefined);
+  if(state.finalPacket)void submitFinal();else void runtime.flushOutbox();
+}
+async function resumeLegacy() {
+  if(recoveringLegacy)return;
+  const candidate=pendingResume;
+  // Persist the chosen credential before claiming; a lost response can retry the same claim.
+  if(!writeLegacyClaim(deviceId,{id:candidate.sessionId,key:candidate.key})){recoveryError='再開情報を保存できませんでした。ブラウザの保存設定をご確認ください。';render();return;}
+  recoveringLegacy=true;recoveryError='';render();
+  try {
+    const record=await runtime.recoverLegacyExperience(candidate.sessionId,deviceId,candidate.key);
+    pendingResume=restoreLegacyExperience(record,candidate.key,freshState);
+    recoveringLegacy=false;resumeExperience();
+  } catch(error) {recoveringLegacy=false;recoveryError=error.message||'回答を読み込めませんでした。';render();}
 }
 
 function cameraView() {
@@ -298,6 +337,7 @@ function render() {
     'child-survey': () => surveyView(false), 'parent-survey': () => surveyView(true), done: doneView,
   };
   app.innerHTML = pendingResume ? introView() + resumeView() : production && state.finalPacket && !state.receipt ? sendingView() : views[stage]();
+  if(checkingLegacy){const form=app.querySelector('#participant-form');if(form){form.setAttribute('aria-busy','true');form.querySelector('fieldset').disabled=true;form.querySelector('button').disabled=true;}}
   if (stage === 'game' && (production || state.gameInput==='camera')) {
     const onFinish=async evidence=>{
       if(generation!==gameMountGeneration)return;
@@ -335,19 +375,14 @@ document.addEventListener('click', event => {
   if (production && state.finalPacket && !['reset', 'retry-send'].includes(target.dataset.action)) return;
   const action = target.dataset.action;
   if (action === 'resume-experience' && pendingResume) {
-    state = pendingResume; pendingResume = null;
-    // Re-enter camera preparation explicitly instead of reopening a stream on page load.
-    const stage = state.stage === 'game' ? 'camera' : state.stage;
-    state.stage = stage; save(); go(stage, stage === 'parent-survey' ? state.market.step : undefined);
-    if (state.finalPacket) void submitFinal();
-    else void runtime.flushOutbox();
+    if(pendingResume.legacyRecovery)void resumeLegacy();else resumeExperience();
     return;
   }
   if (action === 'retry-send') void submitFinal();
   if (action === 'go') go(target.dataset.stage);
   if (action === 'review') reviewJump(target.dataset.stage);
   if (action === 'sample') { const participant = state.participant; state = freshState(); state.participant = participant; sample(); go('recipes'); }
-  if (action === 'reset') { nativeGame?.destroy();nativeGame=null; pendingResume=null;if(production)clearResume(demoMode);state = freshState(); storageNotice = ''; go('intro');if(production)void runtime.flushOutbox(); }
+  if (action === 'reset') { nativeGame?.destroy();nativeGame=null; pendingResume=null;recoveryError='';if(production){clearResume(demoMode);if(!demoMode)dismissLegacyRecovery(deviceId);}state = freshState(); storageNotice = ''; go('intro');if(production)void runtime.flushOutbox(); }
   if (action === 'start-camera-game') {gameEntryRequested=true;state.caught=[];state.evidence={};state.gameFinished=false;state.score=0;state.recipeId=null;state.gameInput='camera';go('game');}
   if (action === 'demo-game') { gameEntryRequested=true;state.caught = []; state.evidence = {}; state.gameFinished = false; state.score = 0; state.recipeId = null; state.gameInput = 'demo'; go('game'); }
   if (action === 'skip-game') { state.gameFinished = true; state.returnPortrait=phoneViewport(); save(); go(state.returnPortrait&&innerWidth>innerHeight?'result':'handoff'); }
@@ -374,6 +409,7 @@ document.addEventListener('submit', event => {
   const participantForm = event.target.closest('#participant-form');
   if (participantForm) {
     event.preventDefault();
+    if(checkingLegacy)return;
     const data = new FormData(participantForm);
     const participant = restoreParticipant({ age: data.get('age') });
     if (!participantComplete(participant)) return;
@@ -437,11 +473,11 @@ document.querySelector('#flow-toggle').addEventListener('click', event => {
 window.addEventListener('hashchange', render);
 window.addEventListener('resize',()=>{if(state.stage==='result'&&state.returnPortrait&&innerHeight>=innerWidth)render();});
 window.addEventListener('pagehide', () => { clearTimeout(draftTimer);save();checkpoint();gameMountGeneration++;nativeGame?.destroy(); });
-window.addEventListener('pageshow', event=>{if(event.persisted){state=freshState();pendingResume=production?readResume(demoMode,freshState):null;gameEntryRequested=false;history.replaceState(null,'','#intro');render();}});
+window.addEventListener('pageshow', event=>{if(event.persisted){state=freshState();pendingResume=initialResume();gameEntryRequested=false;history.replaceState(null,'','#intro');render();if(production&&!pendingResume)void checkLegacyRecovery();}});
 if (production) {
   runtime.onSaved(acceptSaved);
   runtime.onIdChanged(({key,id})=>{if(state.key!==key)return;state.sessionId=id;if(state.finalPacket)state.finalPacket={...state.finalPacket,id};save();app.dataset.experienceId=id;});
   history.replaceState(null, '', '#intro');
 }
 render();
-if (production && !pendingResume) void runtime.flushOutbox();
+if (production && !pendingResume) void checkLegacyRecovery();

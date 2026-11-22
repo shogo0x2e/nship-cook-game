@@ -76,7 +76,10 @@ export function validateExperience(value:unknown):ExperiencePayload{
 type Row={id:string;token_hash:string;sequence:number;payload_hash:string;payload:string;complete:number;receipt:string|null;created_at:string;updated_at:string};
 export class ExperienceStore{
  readonly db:DatabaseSync;
- constructor(db:DatabaseSync){
+ private readonly legacyRecoveryIds:readonly string[];
+ constructor(db:DatabaseSync,legacyRecoveryIds:readonly string[]=[]){
+  if(!Array.isArray(legacyRecoveryIds)||legacyRecoveryIds.length>2||new Set(legacyRecoveryIds).size!==legacyRecoveryIds.length||legacyRecoveryIds.some(id=>!shortId.test(id)))throw new Error('Invalid legacy recovery allowlist');
+  this.legacyRecoveryIds=[...legacyRecoveryIds];
   this.db=db;
   db.exec(`PRAGMA synchronous=FULL;
    CREATE TABLE IF NOT EXISTS experience_responses(
@@ -87,19 +90,51 @@ export class ExperienceStore{
    CREATE INDEX IF NOT EXISTS experience_aggregate_idx ON experience_responses(demo,complete,questionnaire_version);`);
   if(!db.prepare('PRAGMA table_info(experience_responses)').all().some(column=>column.name==='device_id'))db.exec('ALTER TABLE experience_responses ADD COLUMN device_id TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS experience_device_idx ON experience_responses(device_id)');
+  db.exec('CREATE TABLE IF NOT EXISTS experience_recovery_keys(id TEXT PRIMARY KEY REFERENCES experience_responses(id) ON DELETE CASCADE,token_hash TEXT NOT NULL,created_at TEXT NOT NULL)');
  }
  private credentials(id:string,token:string|undefined){
   if(!(uuid.test(id)||shortId.test(id))||!token||!/^[0-9a-f]{64}$/.test(token))throw new SessionError(401,'Experience key required');
   return digest(token);
  }
- private authorize(row:Row,hash:string){if(!timingSafeEqual(Buffer.from(row.token_hash,'hex'),Buffer.from(hash,'hex')))throw new SessionError(401,'Experience key required');}
+ private matchesCredential(row:Row,hash:string){
+  if(timingSafeEqual(Buffer.from(row.token_hash,'hex'),Buffer.from(hash,'hex')))return true;
+  const recovered=this.db.prepare('SELECT token_hash FROM experience_recovery_keys WHERE id=?').get(row.id);
+  return Boolean(recovered&&timingSafeEqual(Buffer.from(recovered.token_hash as string,'hex'),Buffer.from(hash,'hex')));
+ }
+ private authorize(row:Row,hash:string){if(!this.matchesCredential(row,hash))throw new SessionError(401,'Experience key required');}
+ private legacyRow(id:string,deviceId:unknown){
+  if(typeof deviceId!=='string'||!uuid.test(deviceId))return invalid();
+  if(!this.legacyRecoveryIds.includes(id))return undefined;
+  const row=this.db.prepare('SELECT * FROM experience_responses WHERE id=? AND device_id=? AND demo=0 AND complete=0 AND questionnaire_version=?').get(id,deviceId,questionnaireVersion) as Row|undefined;
+  if(row){try{validateExperience(JSON.parse(row.payload));}catch{return undefined;}}
+  return row;
+ }
+ findLegacy(deviceId:unknown){
+  if(typeof deviceId!=='string'||!uuid.test(deviceId))return invalid();
+  for(const id of this.legacyRecoveryIds){
+   if(this.legacyRow(id,deviceId)&&!this.db.prepare('SELECT 1 FROM experience_recovery_keys WHERE id=?').get(id))return {id};
+  }
+  return null;
+ }
+ claimLegacy(id:string,deviceId:unknown,token:string|undefined){
+  const hash=this.credentials(id,token);
+  this.db.exec('BEGIN IMMEDIATE');
+  try{
+   const row=this.legacyRow(id,deviceId);if(!row)throw new SessionError(404,'No recoverable experience');
+   const claimed=this.db.prepare('SELECT token_hash FROM experience_recovery_keys WHERE id=?').get(id);
+   if(claimed&&!timingSafeEqual(Buffer.from(claimed.token_hash as string,'hex'),Buffer.from(hash,'hex')))throw new SessionError(404,'No recoverable experience');
+   if(!claimed)this.db.prepare('INSERT INTO experience_recovery_keys(id,token_hash,created_at) VALUES(?,?,?)').run(id,hash,new Date().toISOString());
+   const recovered={...this.get(id,token),createdAt:row.created_at,updatedAt:row.updated_at};
+   this.db.exec('COMMIT');return recovered;
+  }catch(error){this.db.exec('ROLLBACK');throw error;}
+ }
  save(id:string,token:string|undefined,value:unknown){
   const tokenHash=this.credentials(id,token);const payload=validateExperience(value);const text=JSON.stringify(payload);const hash=digest(text);const now=new Date().toISOString();
   this.db.exec('BEGIN IMMEDIATE');
   try{
    const previous=this.db.prepare('SELECT * FROM experience_responses WHERE id=?').get(id) as Row|undefined;
    if(previous){
-    if(shortId.test(id)&&!timingSafeEqual(Buffer.from(previous.token_hash,'hex'),Buffer.from(tokenHash,'hex')))throw new SessionError(409,'Experience ID collision');
+    if(shortId.test(id)&&!this.matchesCredential(previous,tokenHash))throw new SessionError(409,'Experience ID collision');
     this.authorize(previous,tokenHash);
     if(payload.sequence<previous.sequence){this.db.exec('COMMIT');return {saved:true,id,sequence:previous.sequence,complete:Boolean(previous.complete),receipt:previous.receipt,stale:true};}
     if(payload.sequence===previous.sequence){

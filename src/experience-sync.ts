@@ -1,4 +1,18 @@
 import {questionnaireVersion, type ExperiencePayload} from './experience-protocol.ts';
+export type LegacyCandidate={id:string};
+export type RecoveredExperience={id:string;sequence:number;complete:boolean;receipt:string|null;payload:ExperiencePayload;createdAt:string;updatedAt:string};
+export async function findLegacyExperience(deviceId:string):Promise<LegacyCandidate|null>{
+ const response=await fetch('/api/experience-recovery/lookup',{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId}),signal:AbortSignal.timeout(3000)});
+ if(!response.ok)throw new Error('Previous answer lookup failed');
+ const result=await response.json();
+ return result.candidate&&/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/.test(result.candidate.id)?{id:result.candidate.id}:null;
+}
+export async function recoverLegacyExperience(id:string,deviceId:string,key:string):Promise<RecoveredExperience>{
+ let response:Response;
+ try{response=await fetch('/api/experience-recovery/claim',{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({id,deviceId}),signal:AbortSignal.timeout(10000)});}catch{throw new Error('通信できませんでした。もう一度、続きから再開してください。');}
+ if(!response.ok)throw new Error(response.status===404?'この回答は再開できません。送信済みの場合や、別の画面で再開した場合があります。':'回答を読み込めませんでした。もう一度お試しください。');
+ return await response.json() as RecoveredExperience;
+}
 // @ts-expect-error Shared with the standalone HTML prototype.
 import { newExperienceId } from '../design/recipe-prototype/experience-id.js';
 export type Packet={id:string;key:string;payload:ExperiencePayload};
